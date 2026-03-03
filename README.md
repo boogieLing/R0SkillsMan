@@ -15,3 +15,75 @@
 | `r0-submit` | 开发收尾提交编排技能，先审查再分组提交，使用 `r0push` 推送，并在本地记录提交过程。 |
 | `r0-work` | 面向工程交付的实施技能，强调严格流程、范围控制和多语言项目下的生产级代码实现。 |
 | `r0-write-lark` | 将本地文章目录按自然语言指令同步到 Lark/飞书云文档，支持自动匹配文章、导入并回写元数据。 |
+
+## 快速开始（从 clone 到可用）
+
+### 1. 克隆仓库
+
+```bash
+git clone <你的仓库地址> r0-skills
+cd r0-skills
+```
+
+示例：
+
+```bash
+git clone git@gl.quanyougame.net:lynsan/skills-man.git r0-skills
+cd r0-skills
+```
+
+### 2. 安装到 Codex（推荐用软链接）
+
+```bash
+mkdir -p ~/.codex/skills
+for d in r0-*; do
+  ln -sfn "$(pwd)/$d" ~/.codex/skills/"$d"
+done
+```
+
+### 3. 安装到 Claude Code（推荐用软链接）
+
+```bash
+mkdir -p ~/.claude/skills
+for d in r0-*; do
+  ln -sfn "$(pwd)/$d" ~/.claude/skills/"$d"
+done
+```
+
+### 4. 验证安装
+
+```bash
+ls -l ~/.codex/skills | rg 'r0-'
+ls -l ~/.claude/skills | rg 'r0-'
+```
+
+如果你已经打开了 Codex 或 Claude Code，会话中看不到新技能时，重开一次会话即可。
+
+### 5. 在 Codex 中使用
+
+1. 进入你的目标项目目录后启动 Codex。
+2. 在提示词中明确点名技能名。
+
+示例提示词：
+- `使用 r0-review 对当前改动做一次 quick 审查，并给出高风险问题。`
+- `使用 r0-work 完成这个需求，只改动 api 模块。`
+
+### 6. 在 Claude Code 中使用
+
+1. 进入你的目标项目目录后启动 Claude Code。
+2. 在提示词中明确点名技能名。
+
+示例提示词：
+- `请使用 r0-read 阅读这个仓库，输出架构与主流程。`
+- `请使用 r0-submit 进行收尾提交流程，不要改业务代码。`
+
+### 7. 更新这套技能
+
+当仓库有新提交时：
+
+```bash
+cd /path/to/r0-skills
+git pull
+```
+
+如果只是内容更新，软链接方式会自动生效；如果新增了新的 `r0-*` 目录，再执行一次第 2、3 步的链接命令。
