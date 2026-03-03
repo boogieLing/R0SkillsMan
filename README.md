@@ -32,29 +32,36 @@ git clone git@gl.quanyougame.net:lynsan/skills-man.git r0-skills
 cd r0-skills
 ```
 
-### 2. 安装到 Codex（推荐用软链接）
+### 2. 一键安装软链接（推荐）
 
 ```bash
-mkdir -p ~/.codex/skills
-for d in r0-*; do
-  ln -sfn "$(pwd)/$d" ~/.codex/skills/"$d"
-done
+./scripts/sync_skill_links.sh
 ```
 
-### 3. 安装到 Claude Code（推荐用软链接）
+说明：
+- 该脚本会同时同步到 `~/.codex/skills` 和 `~/.claude/skills`。
+- 如果目标位置已有同名目录/文件，会先自动备份再创建软链接。
+- 如需先拉取仓库最新内容再同步，使用：
 
 ```bash
-mkdir -p ~/.claude/skills
-for d in r0-*; do
-  ln -sfn "$(pwd)/$d" ~/.claude/skills/"$d"
-done
+./scripts/sync_skill_links.sh --pull
 ```
 
-### 4. 验证安装
+### 3. 验证安装
 
 ```bash
 ls -l ~/.codex/skills | rg 'r0-'
 ls -l ~/.claude/skills | rg 'r0-'
+```
+
+### 4. 手动方式（可选，脚本不可用时）
+
+```bash
+mkdir -p ~/.codex/skills ~/.claude/skills
+for d in r0-*; do
+  ln -sfn "$(pwd)/$d" ~/.codex/skills/"$d"
+  ln -sfn "$(pwd)/$d" ~/.claude/skills/"$d"
+done
 ```
 
 如果你已经打开了 Codex 或 Claude Code，会话中看不到新技能时，重开一次会话即可。
@@ -77,13 +84,13 @@ ls -l ~/.claude/skills | rg 'r0-'
 - `请使用 r0-read 阅读这个仓库，输出架构与主流程。`
 - `请使用 r0-submit 进行收尾提交流程，不要改业务代码。`
 
-### 7. 更新这套技能
+### 7. 更新这套技能（推荐）
 
 当仓库有新提交时：
 
 ```bash
 cd /path/to/r0-skills
-git pull
+./scripts/sync_skill_links.sh --pull
 ```
 
-如果只是内容更新，软链接方式会自动生效；如果新增了新的 `r0-*` 目录，再执行一次第 2、3 步的链接命令。
+如果只是内容更新，软链接会自动指向最新内容；如果新增了新的 `r0-*` 目录，脚本也会自动补齐链接。
