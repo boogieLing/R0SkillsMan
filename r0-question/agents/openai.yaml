@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Question"
+  short_description: "Help with R0 Question tasks"
+  default_prompt: "使用 $r0-question 执行当前任务，并按技能规范输出中文结构化结果。"
