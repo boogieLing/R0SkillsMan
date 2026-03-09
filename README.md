@@ -94,3 +94,23 @@ cd /path/to/r0-skills
 ```
 
 如果只是内容更新，软链接会自动指向最新内容；如果新增了新的 `r0-*` 目录，脚本也会自动补齐链接。
+
+### 8. 同步所有 Git 远端
+
+当前仓库可配置多个远端，例如 `origin`、`cggame`、`github`。提交完成后，如果需要把当前分支推送到所有远端，可执行：
+
+```bash
+./scripts/sync_all_remotes.sh
+```
+
+只同步指定远端：
+
+```bash
+./scripts/sync_all_remotes.sh --remote origin --remote github
+```
+
+指定分支同步：
+
+```bash
+./scripts/sync_all_remotes.sh --branch main
+```
