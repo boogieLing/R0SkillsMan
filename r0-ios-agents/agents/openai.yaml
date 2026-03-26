@@ -1,4 +1,0 @@
-interface:
-  display_name: "R0 iOS Agents"
-  short_description: "统一编排 Codex + Figma + iOS 开发流程"
-  default_prompt: "用 r0-ios-agents 编排当前 iOS 开发任务，给出并行与串行执行计划并开始执行。"
