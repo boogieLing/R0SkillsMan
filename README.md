@@ -3,6 +3,9 @@
 本仓库用于维护一组 `r0-*` 本地技能，覆盖代码实现、代码阅读、审查、提交流程、图资产门禁、iOS 协同开发和 Lark 同步等场景。
 
 本地执行记录、总结、坏例子与研究笔记统一落到仓库根目录下的 `r0/`，例如 `r0/request/`、`r0/review/`、`r0/work/`。
+注意两层命名不要混淆：
+- skill 调用名、skill 目录名、安装软链名继续使用 `r0-xxx`
+- 文档产物、本地记录目录统一使用 `r0/xxx`
 
 ## 技能清单与作用
 
@@ -43,18 +46,28 @@ cd r0-skills
 说明：
 - 该脚本会同时同步到 `~/.codex/skills` 和 `~/.claude/skills`。
 - 如果目标位置已有同名目录/文件，会先自动备份再创建软链接。
+- 脚本默认会校验“当前仓库是否像完整 skill 根目录”；如果目标目录里已有更多 `r0-*` 技能，而当前仓库只包含部分目录，会直接阻断，避免把已有链接切到错误来源。
 - 如需先拉取仓库最新内容再同步，使用：
 
 ```bash
 ./scripts/sync_skill_links.sh --pull
 ```
 
+如果你明确只想同步当前仓库里这部分技能，可显式添加：
+
+```bash
+./scripts/sync_skill_links.sh --allow-partial
+```
+
 ### 3. 验证安装
 
 ```bash
+./scripts/check_skill_links.sh
 ls -l ~/.codex/skills | rg 'r0-'
 ls -l ~/.claude/skills | rg 'r0-'
 ```
+
+如果 `check_skill_links.sh` 报来源不完整或存在失效软链接，先修复 skill 根目录，再决定是否执行同步。
 
 ### 4. 手动方式（可选，脚本不可用时）
 
@@ -65,6 +78,8 @@ for d in r0-*; do
   ln -sfn "$(pwd)/$d" ~/.claude/skills/"$d"
 done
 ```
+
+注意：手动方式同样只应在“完整 skill 根目录”中执行；如果当前只是一个临时 worktree、镜像或裁剪仓库，不要直接批量重建链接。
 
 如果你已经打开了 Codex 或 Claude Code，会话中看不到新技能时，重开一次会话即可。
 

@@ -3,6 +3,9 @@
 ## 1. Local Record Layout
 
 - 所有 `r0-*` skill 的本地文档、审查记录、执行总结、坏例子、研究笔记，统一写入 `./r0/<skill-key>/`。
+- 规则边界必须固定：
+  - skill 调用名、skill 目录名、安装软链名继续使用 `r0-xxx`
+  - 文档产物、本地记录、坏例子、研究笔记目录统一使用 `r0/xxx`
 - `<skill-key>` 固定为 skill 名去掉前缀 `r0-` 后的剩余部分，例如：
   - `r0-request -> ./r0/request/`
   - `r0-read -> ./r0/read/`
@@ -122,6 +125,9 @@ git restore --staged -- r0/ 'r0-*'
 > Validation: `pass | partial | fail`
 > Record: `./r0/xxx/...`
 ```
+
+- `Skill:` 字段必须填写 skill 调用名，例如 `r0-work`、`r0-request`。
+- `Record:` 字段必须填写产物目录路径，例如 `./r0/work/...`、`./r0/request/...`。
 
 - 若宿主支持结构化 directive，允许在正文后追加：
   - `::automation-update{...}`
