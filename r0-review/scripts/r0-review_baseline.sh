@@ -218,6 +218,28 @@ for f in "${TARGETS[@]}"; do
   run_security_keyword_scan "$f"
 done
 
+if [[ "$MODE" == "full" ]]; then
+  if command -v gocyclo >/dev/null 2>&1; then
+    {
+      echo
+      echo "## gocyclo"
+      gocyclo -over 10 "${TARGETS[@]}" || true
+    } > "$OUT_DIR/gocyclo.txt"
+  fi
+
+  if command -v gosec >/dev/null 2>&1 && [[ -f "go.mod" ]]; then
+    gosec ./... > "$OUT_DIR/gosec.txt" 2>&1 || true
+  fi
+
+  if command -v golangci-lint >/dev/null 2>&1 && [[ -f "go.mod" ]]; then
+    golangci-lint run ./... > "$OUT_DIR/golangci-lint.txt" 2>&1 || true
+  fi
+
+  if command -v bandit >/dev/null 2>&1; then
+    bandit -q -r . > "$OUT_DIR/bandit.txt" 2>&1 || true
+  fi
+fi
+
 {
   echo
   echo "## files"
@@ -229,6 +251,9 @@ done
   echo "- complexity.csv"
   echo "- comment_coverage.csv"
   echo "- security_hits.txt"
+  if [[ "$MODE" == "full" ]]; then
+    echo "- optional: gocyclo.txt / gosec.txt / golangci-lint.txt / bandit.txt"
+  fi
 } >> "$OUT_DIR/summary.md"
 
 echo "Baseline finished. Summary: $OUT_DIR/summary.md"

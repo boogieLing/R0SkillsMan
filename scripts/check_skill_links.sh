@@ -28,12 +28,13 @@ count_skill_entries() {
 print_list() {
   local title="$1"
   shift
+  local -a items=("$@")
   echo "$title"
-  if [[ $# -eq 0 ]]; then
+  if [[ ${#items[@]} -eq 0 ]]; then
     echo "- <none>"
     return
   fi
-  printf '%s\n' "$@" | sed 's/^/- /'
+  printf '%s\n' "${items[@]}" | sed 's/^/- /'
 }
 
 inspect_target_dir() {
@@ -60,8 +61,16 @@ inspect_target_dir() {
   echo "[$label]"
   echo "dir=$base_dir"
   echo "count=${#entries[@]}"
-  print_list "entries:" "${entries[@]}"
-  print_list "broken_links:" "${broken[@]}"
+  if [[ ${#entries[@]} -gt 0 ]]; then
+    print_list "entries:" "${entries[@]}"
+  else
+    print_list "entries:"
+  fi
+  if [[ ${#broken[@]} -gt 0 ]]; then
+    print_list "broken_links:" "${broken[@]}"
+  else
+    print_list "broken_links:"
+  fi
   echo "broken_count=$broken_count"
   echo
 

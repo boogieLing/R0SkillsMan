@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
+"""Run the non-commit r0-submit preparation flow end to end.
+
+Flow:
+- prepare submit record
+- run r0-review baseline
+- refresh scope-check block after local record artifacts are created
+
+This script never stages files and never invokes r0push.
+"""
+
 from __future__ import annotations
 
 import argparse
-import csv
 import json
+import csv
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 PREPARE = SKILL_ROOT / "scripts" / "prepare_submit_record.py"
@@ -27,7 +38,8 @@ def run(cmd: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
 def git(repo_root: Path, *args: str) -> str:
     completed = run(["git", *args], repo_root)
     if completed.returncode != 0:
-        raise RuntimeError(completed.stderr.strip() or completed.stdout.strip() or "git failed")
+        stderr = completed.stderr.strip() or completed.stdout.strip() or "git command failed"
+        raise RuntimeError(f"{' '.join(args)}: {stderr}")
     return completed.stdout.strip()
 
 
@@ -51,29 +63,36 @@ def upsert_block(text: str, block: str) -> str:
 
 def replace_line(text: str, prefix: str, value: str) -> str:
     lines = text.splitlines()
+    replaced = False
     for i, line in enumerate(lines):
         if line.startswith(prefix):
             lines[i] = f"{prefix} {value}".rstrip()
-            return "\n".join(lines) + "\n"
-    lines.append(f"{prefix} {value}".rstrip())
+            replaced = True
+            break
+    if not replaced:
+        lines.append(f"{prefix} {value}".rstrip())
     return "\n".join(lines) + "\n"
 
 
 def render_review_block(mode: str, out_dir: Path, summary: Path, stdout: str, exit_code: int) -> str:
-    return "\n".join([
-        "## Review Baseline Artifact",
-        START,
-        "```text",
-        f"mode={mode}",
-        f"exit_code={exit_code}",
-        f"out_dir={out_dir}",
-        f"summary={summary}",
-        "",
-        "[stdout]",
-        stdout.strip() or "<empty>",
-        "```",
-        END,
-    ])
+    rel_out = out_dir.name if out_dir.parent.name == "_artifacts" else str(out_dir)
+    return "\n".join(
+        [
+            "## Review Baseline Artifact",
+            START,
+            "```text",
+            f"mode={mode}",
+            f"exit_code={exit_code}",
+            f"out_dir={out_dir}",
+            f"summary={summary}",
+            f"artifact_label={rel_out}",
+            "",
+            "[stdout]",
+            stdout.strip() or "<empty>",
+            "```",
+            END,
+        ]
+    )
 
 
 def rel_to_repo(path: Path, repo_root: Path) -> str:
@@ -84,6 +103,10 @@ def rel_to_repo(path: Path, repo_root: Path) -> str:
 
 
 def review_metrics(out_dir: Path) -> dict[str, object]:
+    complexity_csv = out_dir / "complexity.csv"
+    comment_csv = out_dir / "comment_coverage.csv"
+    security_hits = out_dir / "security_hits.txt"
+
     metrics: dict[str, object] = {
         "target_count": 0,
         "total_lines": 0,
@@ -96,9 +119,6 @@ def review_metrics(out_dir: Path) -> dict[str, object]:
         "comment_ratio_avg": 0.0,
         "security_hit_count": 0,
     }
-    complexity_csv = out_dir / "complexity.csv"
-    comment_csv = out_dir / "comment_coverage.csv"
-    security_hits = out_dir / "security_hits.txt"
 
     if complexity_csv.exists():
         with complexity_csv.open(encoding="utf-8") as fh:
@@ -108,6 +128,7 @@ def review_metrics(out_dir: Path) -> dict[str, object]:
                 metrics["total_branch_signals"] += int(row["branch_signals"])
                 metrics["max_est_complexity"] = max(metrics["max_est_complexity"], int(row["est_complexity"]))
                 metrics["max_nesting"] = max(metrics["max_nesting"], int(row["max_nesting"]))
+
     if comment_csv.exists():
         ratio_sum = 0.0
         with comment_csv.open(encoding="utf-8") as fh:
@@ -118,9 +139,26 @@ def review_metrics(out_dir: Path) -> dict[str, object]:
                 ratio_sum += float(row["comment_ratio"])
         if metrics["comment_file_count"]:
             metrics["comment_ratio_avg"] = round(ratio_sum / metrics["comment_file_count"], 4)
+
     if security_hits.exists():
         metrics["security_hit_count"] = sum(1 for line in security_hits.read_text(encoding="utf-8").splitlines() if line.strip())
+
     return metrics
+
+
+def derive_risk_flags(metrics: dict[str, object], final_scope_exit_code: int | str | None) -> dict[str, bool]:
+    max_est_complexity = int(metrics.get("max_est_complexity", 0) or 0)
+    total_branch_signals = int(metrics.get("total_branch_signals", 0) or 0)
+    security_hit_count = int(metrics.get("security_hit_count", 0) or 0)
+    target_count = int(metrics.get("target_count", 0) or 0)
+
+    return {
+        "review_has_security_hits": security_hit_count > 0,
+        "review_has_complexity_hotspot": max_est_complexity >= COMPLEXITY_HOTSPOT_THRESHOLD,
+        "review_has_branch_signal_hotspot": total_branch_signals >= BRANCH_SIGNAL_HOTSPOT_THRESHOLD,
+        "review_has_no_targets": target_count == 0,
+        "scope_check_blocked": final_scope_exit_code not in (0, "0", None),
+    }
 
 
 def risk_flag_thresholds() -> dict[str, object]:
@@ -133,24 +171,20 @@ def risk_flag_thresholds() -> dict[str, object]:
     }
 
 
-def derive_risk_flags(metrics: dict[str, object], final_scope_exit_code: int | str | None) -> dict[str, bool]:
-    return {
-        "review_has_security_hits": int(metrics.get("security_hit_count", 0) or 0) > 0,
-        "review_has_complexity_hotspot": int(metrics.get("max_est_complexity", 0) or 0) >= COMPLEXITY_HOTSPOT_THRESHOLD,
-        "review_has_branch_signal_hotspot": int(metrics.get("total_branch_signals", 0) or 0) >= BRANCH_SIGNAL_HOTSPOT_THRESHOLD,
-        "review_has_no_targets": int(metrics.get("target_count", 0) or 0) == 0,
-        "scope_check_blocked": final_scope_exit_code not in (0, "0", None),
-    }
-
-
 def main() -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--repo-root", default=".")
-    parser.add_argument("--review-mode", default="quick", choices=["quick", "full"])
-    parser.add_argument("--record-file")
+    parser = argparse.ArgumentParser(description="Prepare r0-submit dry-run artifacts without invoking r0push.")
+    parser.add_argument("--repo-root", default=".", help="Git repo root or any path inside it.")
+    parser.add_argument("--review-mode", default="quick", choices=["quick", "full"], help="Mode for r0-review baseline.")
+    parser.add_argument("--record-file", help="Optional target record file.")
     args = parser.parse_args()
 
-    repo_root = Path(git(Path(args.repo_root).resolve(), "rev-parse", "--show-toplevel"))
+    repo_root = Path(args.repo_root).resolve()
+    try:
+        repo_root = Path(git(repo_root, "rev-parse", "--show-toplevel"))
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}")
+        return 1
+
     for required in (PREPARE, SCOPE_WRITER, REVIEW_BASELINE):
         if not required.exists():
             print(f"[ERROR] missing helper: {required}")
@@ -173,10 +207,22 @@ def main() -> int:
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = repo_root / "r0" / "review" / "_artifacts" / f"submit_dry_run_{ts}"
-    baseline = run(["bash", str(REVIEW_BASELINE), "--mode", args.review_mode, "--out-dir", str(out_dir)], repo_root)
+    baseline = run(
+        ["bash", str(REVIEW_BASELINE), "--mode", args.review_mode, "--out-dir", str(out_dir)],
+        repo_root,
+    )
     summary = out_dir / "summary.md"
 
-    refresh = run(["python3", str(SCOPE_WRITER), "--repo-root", str(repo_root), "--record-file", str(record_file)], repo_root)
+    text = record_file.read_text(encoding="utf-8")
+    text = upsert_block(
+        text,
+        render_review_block(args.review_mode, out_dir, summary, baseline.stdout, baseline.returncode),
+    )
+
+    refresh = run(
+        ["python3", str(SCOPE_WRITER), "--repo-root", str(repo_root), "--record-file", str(record_file)],
+        repo_root,
+    )
     if refresh.returncode != 0:
         sys.stdout.write(refresh.stdout)
         sys.stderr.write(refresh.stderr)
@@ -203,7 +249,10 @@ def main() -> int:
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     text = record_file.read_text(encoding="utf-8")
-    text = upsert_block(text, render_review_block(args.review_mode, out_dir, summary, baseline.stdout, baseline.returncode))
+    text = upsert_block(
+        text,
+        render_review_block(args.review_mode, out_dir, summary, baseline.stdout, baseline.returncode),
+    )
     text = replace_line(text, "- dry-run manifest 路径：", rel_to_repo(manifest_path, repo_root))
     record_file.write_text(text, encoding="utf-8")
 
