@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Work"
+  short_description: "Long-running subagent-first implementation controller"
+  default_prompt: "使用 $r0-work 执行当前任务，并按技能规范输出中文结构化结果。"
