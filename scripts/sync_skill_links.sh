@@ -97,6 +97,23 @@ assert_safe_source_layout() {
   fi
 }
 
+assert_skill_entrypoints() {
+  local skill_dir
+  local -a missing=()
+
+  for skill_dir in "${SKILL_DIRS[@]}"; do
+    if [[ ! -f "$skill_dir/SKILL.md" ]]; then
+      missing+=("$(basename "$skill_dir")")
+    fi
+  done
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "以下 r0-* 目录缺少 SKILL.md，停止同步：" >&2
+    printf ' - %s\n' "${missing[@]}" >&2
+    exit 3
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --pull)
@@ -125,6 +142,7 @@ fi
 
 collect_skill_dirs
 assert_safe_source_layout "${#SKILL_DIRS[@]}"
+assert_skill_entrypoints
 
 for skill_dir in "${SKILL_DIRS[@]}"; do
   skill_name="$(basename "$skill_dir")"

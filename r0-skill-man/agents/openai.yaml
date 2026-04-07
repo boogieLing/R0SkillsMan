@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Skill Man"
+  short_description: "Help with R0 Skill Man tasks"
+  default_prompt: "使用 $r0-skill-man 执行当前任务，并按技能规范输出中文结构化结果。"

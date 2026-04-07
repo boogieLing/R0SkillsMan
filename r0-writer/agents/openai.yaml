@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Writer"
+  short_description: "Projectized long-form writing for WeChat articles"
+  default_prompt: "使用 $r0-writer 把我的素材整理成带 `outline.md`、`style.md`、`draft.md` 的公众号长文。"

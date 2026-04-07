@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Roadmap"
+  short_description: "Analyze a directory and write a roadmap"
+  default_prompt: "使用 $r0-roadmap 阅读指定目录、分析功能与架构，并输出 roadmap。"
