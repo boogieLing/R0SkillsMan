@@ -1,4 +1,4 @@
 interface:
-  display_name: "R0 Diagram Guard"
-  short_description: "Help with R0 Diagram Guard tasks"
-  default_prompt: "使用 $r0-diagram-guard 执行当前任务，并按技能规范输出中文结构化结果。"
+  display_name: "R0 Write Lark"
+  short_description: "Preflight-first sync planning for Lark/Feishu article docs"
+  default_prompt: "使用 $r0-write-lark 先检查本地文章目录与同步目标，再输出飞书/Lark 同步计划；只有当前运行时具备写入能力且目标文档明确时，才执行真实同步。"

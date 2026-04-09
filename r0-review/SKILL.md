@@ -17,6 +17,7 @@ SHARED CONTRACT (MANDATORY)
 - Final output MUST follow the shared result contract: `首屏摘要卡片 -> 执行摘要 -> 关键产物 -> 验证 / 证据 -> 风险 / 下一步 -> 自动进化`.
 - The local record directory for this skill is `./r0/review/`.
 - Review artifacts, notes, and bad cases MUST be written under `./r0/review/` when the task is substantial.
+- If local records were staged by mistake, run `git restore --staged -- r0/ 'r0-*'`.
 
 ================================================================================
 

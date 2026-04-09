@@ -18,8 +18,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-import yaml
-
 GEN_OPENAI_YAML = Path(
     "/Users/r0/.codex/skills/.system/skill-creator/scripts/generate_openai_yaml.py"
 )
@@ -59,13 +57,33 @@ def discover_skills(roots: List[Path], prefix: str) -> List[Path]:
     return sorted(found)
 
 
+def clean_scalar(value: str) -> str:
+    value = value.strip()
+    if not value:
+        return ""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
+def parse_simple_mapping(block: str) -> Dict[str, str]:
+    data: Dict[str, str] = {}
+    for raw_line in block.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        data[key.strip()] = clean_scalar(value)
+    return data
+
+
 def read_frontmatter(skill_md: Path) -> Dict[str, str]:
     text = skill_md.read_text(encoding="utf-8")
     match = re.match(r"^---\n(.*?)\n---", text, re.DOTALL)
     if not match:
         raise ValueError("SKILL.md 缺少有效 frontmatter")
-    data = yaml.safe_load(match.group(1))
-    if not isinstance(data, dict):
+    data = parse_simple_mapping(match.group(1))
+    if not data:
         raise ValueError("frontmatter 不是字典结构")
     return data
 
@@ -94,6 +112,36 @@ def quick_validate(skill_dir: Path) -> Tuple[bool, str]:
     completed = subprocess.run(cmd, capture_output=True, text=True)
     output = completed.stdout.strip() or completed.stderr.strip() or "无输出"
     return completed.returncode == 0, output
+
+
+def read_openai_interface(openai_yaml: Path) -> Dict[str, str]:
+    text = openai_yaml.read_text(encoding="utf-8")
+    match = re.search(r"^interface:\n((?:  .*\n?)*)", text, re.MULTILINE)
+    if not match:
+        return {}
+    return parse_simple_mapping(match.group(1))
+
+
+def openai_yaml_issues(openai_yaml: Path, skill_name: str) -> List[str]:
+    if not openai_yaml.exists():
+        return ["缺少 agents/openai.yaml"]
+
+    interface = read_openai_interface(openai_yaml)
+    issues: List[str] = []
+
+    for field in ("display_name", "short_description", "default_prompt"):
+        if not interface.get(field):
+            issues.append(f"interface.{field} 缺失")
+
+    default_prompt = interface.get("default_prompt", "")
+    if f"${skill_name}" not in default_prompt:
+        issues.append("default_prompt 未绑定当前 skill token")
+
+    referenced_tokens = {token for token in re.findall(r"\$(r0-[a-z0-9-]+)", default_prompt)}
+    if referenced_tokens and referenced_tokens != {skill_name}:
+        issues.append("default_prompt 引用了其他 skill token")
+
+    return issues
 
 
 def legacy_path_issues(text: str) -> List[str]:
@@ -155,12 +203,9 @@ def process_skill(skill_dir: Path, dry_run: bool) -> SkillResult:
         return SkillResult(skill_dir, "flagged", "；".join(path_issues))
 
     openai_yaml = skill_dir / "agents" / "openai.yaml"
-    need_regen = (not openai_yaml.exists()) or (
-        skill_md.stat().st_mtime - openai_yaml.stat().st_mtime > 1.0
-    )
-
+    yaml_issues = openai_yaml_issues(openai_yaml, fm_name)
     changed = False
-    if need_regen:
+    if yaml_issues:
         ok, msg = generate_openai_yaml(skill_dir, fm_name, dry_run=dry_run)
         if not ok:
             return SkillResult(skill_dir, "flagged", msg)

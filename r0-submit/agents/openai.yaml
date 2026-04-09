@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Submit"
+  short_description: "Help with R0 Submit tasks"
+  default_prompt: "使用 $r0-submit 执行当前任务，并按技能规范输出中文结构化结果。"

@@ -14,9 +14,10 @@ SHARED CONTRACT (MANDATORY)
 ================================================================================
 
 - Before execution, you MUST load `../shared/r0-core-contract.md`.
-- Result output MUST follow the shared result contract / 共享结果契约.
+- Result output MUST follow the shared result contract / 共享结果契约: start with the unified `首屏摘要卡片`, then provide structured sections and `自动进化`.
 - The local record directory for this skill is `./r0/writer/`.
 - Every substantial writing task SHOULD leave notes, bad cases, or research records under `./r0/writer/`.
+- If local records were staged by mistake, run `git restore --staged -- r0/ 'r0-*'`.
 
 ================================================================================
 
