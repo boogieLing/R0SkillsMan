@@ -271,25 +271,29 @@ done
 
 1. 进入你的目标项目目录后启动 Codex。
 2. 对 `r0-work`、`r0-request`、`r0-roadmap`、`r0-read`、`r0-writer` 这类主 skill，建议在提示词开头显式写 skill 名，例如 `$r0-work`、`$r0-request`。
-3. `r0-review`、`r0-submit` 一般不需要专门写成提示词触发，更常见的是在评审或收尾阶段自然接入。
+3. `r0-review`、`r0-submit` 通常更简单，直接写 `$r0-review` 或 `$r0-submit` 就可以，不一定需要再补额外提示词。
 
 示例提示词：
 - `$r0-request 把这个需求整理成可执行的 DSL，并写入 ./r0/request/。`
 - `$r0-work 完成这个需求，只改动 api 模块。`
 - `$r0-roadmap 阅读这个仓库，输出架构、功能边界和主流程。`
 - `$r0-writer 把我的资料整理成一篇公众号长文，并补齐 outline、style 和 draft。`
+- `$r0-review`
+- `$r0-submit`
 
 ### 6. 在 Claude Code 中使用
 
 1. 进入你的目标项目目录后启动 Claude Code。
-2. 同样建议对主 skill 在提示词开头显式写 skill 名，例如 `$r0-work`、`$r0-read`、`$r0-request`。
-3. `r0-review`、`r0-submit` 通常放在评审和收尾阶段使用，不一定要单独作为提示词入口。
+2. Claude Code 侧按 slash command 理解，建议使用 `/r0-work`、`/r0-read`、`/r0-request` 这类形式。
+3. `r0-review`、`r0-submit` 通常更简单，直接输入 `/r0-review` 或 `/r0-submit` 即可。
 
 示例提示词：
-- `$r0-request 把我的需求整理成结构化提示词 DSL。`
-- `$r0-read 阅读这个仓库，输出架构与主流程。`
-- `$r0-work 完成这个需求，范围限制在 api 和 service 层。`
-- `$r0-writer 把这份采访纪要改写成适合公众号发布的长文草稿。`
+- `/r0-request 把我的需求整理成结构化提示词 DSL。`
+- `/r0-read 阅读这个仓库，输出架构与主流程。`
+- `/r0-work 完成这个需求，范围限制在 api 和 service 层。`
+- `/r0-writer 把这份采访纪要改写成适合公众号发布的长文草稿。`
+- `/r0-review`
+- `/r0-submit`
 
 ### 7. 更新这套技能（推荐）
 
