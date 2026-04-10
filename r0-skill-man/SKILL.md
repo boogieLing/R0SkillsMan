@@ -11,7 +11,7 @@ description: "Deterministic daily maintenance for local skill ecosystems: clean 
 - Result output MUST follow the shared result contract / 共享结果契约: start with the unified `首屏摘要卡片`, then provide structured sections and `自动进化`.
 - The local record directory for this skill is `./r0/skill-man/`.
 - Every maintenance cycle MUST leave its execution record, bad cases, and research notes under `./r0/skill-man/`.
-- `.gitignore` rule MUST be `r0/`.
+- `.gitignore` main rule MUST be `r0/`, and the repo SHOULD keep compatibility rule `r0-*/`.
 - If local records were staged by mistake, run `git restore --staged -- r0/ 'r0-*'`.
 
 Execute a conservative, deterministic maintenance cycle for local skills.

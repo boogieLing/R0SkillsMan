@@ -11,6 +11,7 @@ Policy:
 from __future__ import annotations
 
 import argparse
+import filecmp
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,12 +86,14 @@ def latest_tree_mtime(path: Path) -> float:
 def should_copy(src: Path, dst: Path) -> bool:
     if not dst.exists():
         return True
+    if not dst.is_file():
+        return True
     src_stat = src.stat()
     dst_stat = dst.stat()
-    # Copy when size differs or source is meaningfully newer.
     if src_stat.st_size != dst_stat.st_size:
         return True
-    return (src_stat.st_mtime - dst_stat.st_mtime) > 1.0
+    # Worktrees frequently refresh mtimes without changing content.
+    return not filecmp.cmp(src, dst, shallow=False)
 
 
 def sync_one_skill(source: Path, target: Path, dry_run: bool, prune: bool) -> SyncStats:
@@ -165,10 +168,12 @@ def sync_auxiliary_dir(dir_name: str, roots: List[Path], dry_run: bool, prune: b
 
     source = max(existing, key=latest_tree_mtime)
     print(f"\n[{dir_name}] source={source}")
+    seen_targets: Set[Path] = set()
     for root in roots:
         target = (root / dir_name).resolve()
-        if target == source:
+        if target == source or target in seen_targets:
             continue
+        seen_targets.add(target)
         delta = sync_one_skill(source, target, dry_run=dry_run, prune=prune)
         stats.merge(delta)
         if any(
@@ -237,10 +242,12 @@ def main() -> int:
         print(f"\n[{skill_name}] source={source}")
 
         per_skill = SyncStats()
+        seen_targets: Set[Path] = set()
         for root in roots:
             target = (root / skill_name).resolve()
-            if target == source:
+            if target == source or target in seen_targets:
                 continue
+            seen_targets.add(target)
             stats = sync_one_skill(source, target, dry_run=args.dry_run, prune=args.prune)
             per_skill.merge(stats)
             if any(
