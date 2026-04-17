@@ -57,6 +57,7 @@
 - `shared/r0-core-contract.md` 是当前 skill 体系的共享契约入口
 - `scripts/install_and_quick_start.sh` 负责“拉取远端 + quick start”一键配置安装
 - `scripts/quick_start.sh` 负责命名初始化、skill 同步、链接校验与 `r0push` 固定
+- `scripts/uninstall.sh` 负责清理误安装留下的 skill 软链、固定 push 工具和仓库目录
 - `scripts/init_skill_namespace.py` 负责把仓库从 `r0-*` 改成自定义前缀
 - `scripts/check_skill_links.sh` 负责校验本地安装根中的 `r0-*` 软链状态
 - `scripts/sync_skill_links.sh` 负责同步 skill 到 `~/.codex/skills` 与 `~/.claude/skills`
@@ -220,7 +221,38 @@ find ~/.claude/skills -maxdepth 1 -mindepth 1 -type l | sort
 
 如果 `check_skill_links.sh` 报来源不完整、数量异常或存在失效软链，应先修复 skill 根目录或安装根，再决定是否继续同步。
 
-### 7. 手动同步方式
+### 7. 卸载 / 清理误安装
+
+如果你装错了前缀，或者只是想把这套本地 skill 完整移除，可以直接运行：
+
+```bash
+./scripts/uninstall.sh
+```
+
+默认行为：
+
+- 默认卸载标准安装路径 `~/.local/share/r0-skills`
+- 清理 `~/.codex/skills` 与 `~/.claude/skills` 中指向该仓库的 `<prefix>-*` 软链
+- 清理 `~/.local/bin/<prefix>push`
+- 最后删除安装仓库目录本身
+
+常用示例：
+
+```bash
+./scripts/uninstall.sh --dry-run
+./scripts/uninstall.sh --keep-repo
+./scripts/uninstall.sh --repo-root ~/work/r0-skills
+./scripts/uninstall.sh --repo-root ~/work/r0-skills --keep-repo
+```
+
+说明：
+
+- 如果你当初用的是默认安装目录，直接运行 `./scripts/uninstall.sh` 即可
+- 如果你安装到了自定义目录，需要显式传 `--repo-root <path>`
+- `--keep-repo` 只清理本地安装入口，不删除仓库目录
+- `--dry-run` 只输出计划删除的路径，不真正执行
+
+### 8. 手动同步方式
 
 仅当脚本不可用时使用：
 
