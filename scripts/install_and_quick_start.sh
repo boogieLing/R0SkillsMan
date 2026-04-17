@@ -2,6 +2,16 @@
 
 set -euo pipefail
 
+if [[ -z "${R0_INSTALL_TEMP_RUNNER:-}" ]]; then
+  TMP_BASE="${TMPDIR:-/tmp}"
+  TMP_BASE="${TMP_BASE%/}"
+  ORIG_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  TEMP_RUNNER="$(mktemp "$TMP_BASE/install_and_quick_start.XXXXXX")"
+  cp "$ORIG_SCRIPT" "$TEMP_RUNNER"
+  chmod +x "$TEMP_RUNNER"
+  exec env R0_INSTALL_TEMP_RUNNER=1 bash "$TEMP_RUNNER" "$@"
+fi
+
 DEFAULT_REMOTE="github"
 DEFAULT_BRANCH="main"
 DEFAULT_REPO_NAME="r0-skills"
@@ -137,6 +147,15 @@ print_plan() {
   echo "quick_start_cmd=bash $repo_dir/scripts/quick_start.sh ${QUICK_START_ARGS[*]}"
 }
 
+run_quick_start() {
+  local repo_dir="$1"
+  if [[ ${#QUICK_START_ARGS[@]} -gt 0 ]]; then
+    bash "$repo_dir/scripts/quick_start.sh" "${QUICK_START_ARGS[@]}"
+  else
+    bash "$repo_dir/scripts/quick_start.sh"
+  fi
+}
+
 print_intro() {
   local repo_dir="$1"
   local quick_start_output="$2"
@@ -262,7 +281,7 @@ if [[ "$DRY_RUN" == "true" ]]; then
   ensure_quick_start_arg "--allow-dirty"
   print_plan "$INSTALL_DIR"
   if [[ -x "$INSTALL_DIR/scripts/quick_start.sh" ]]; then
-    bash "$INSTALL_DIR/scripts/quick_start.sh" "${QUICK_START_ARGS[@]}"
+    run_quick_start "$INSTALL_DIR"
   fi
   exit 0
 fi
@@ -286,6 +305,6 @@ fi
 echo "remote=$REMOTE"
 echo "branch=$BRANCH"
 echo "install_dir=$INSTALL_DIR"
-QUICK_START_OUTPUT="$(bash "$INSTALL_DIR/scripts/quick_start.sh" "${QUICK_START_ARGS[@]}")"
+QUICK_START_OUTPUT="$(run_quick_start "$INSTALL_DIR")"
 printf '%s\n' "$QUICK_START_OUTPUT"
 print_intro "$INSTALL_DIR" "$QUICK_START_OUTPUT"

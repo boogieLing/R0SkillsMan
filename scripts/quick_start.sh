@@ -2,7 +2,18 @@
 
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -z "${R0_TEMP_RUNNER:-}" ]]; then
+  TMP_BASE="${TMPDIR:-/tmp}"
+  TMP_BASE="${TMP_BASE%/}"
+  ORIG_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  ORIG_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  TEMP_RUNNER="$(mktemp "$TMP_BASE/quick_start.XXXXXX")"
+  cp "$ORIG_SCRIPT" "$TEMP_RUNNER"
+  chmod +x "$TEMP_RUNNER"
+  exec env R0_TEMP_RUNNER=1 R0_ROOT_DIR="$ORIG_ROOT_DIR" bash "$TEMP_RUNNER" "$@"
+fi
+
+ROOT_DIR="${R0_ROOT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CODEX_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 LOCAL_BIN_DIR="${LOCAL_BIN_DIR:-$HOME/.local/bin}"
@@ -116,7 +127,10 @@ if [[ "$DRY_RUN" == "true" ]]; then
   INIT_CMD+=("--dry-run")
 fi
 
-INIT_OUTPUT="$("${INIT_CMD[@]}")"
+INIT_OUTPUT_FILE="$(mktemp)"
+"${INIT_CMD[@]}" >"$INIT_OUTPUT_FILE"
+INIT_OUTPUT="$(cat "$INIT_OUTPUT_FILE")"
+rm -f "$INIT_OUTPUT_FILE"
 printf '%s\n' "$INIT_OUTPUT"
 
 TARGET_PREFIX="$(parse_key "target_prefix" "$INIT_OUTPUT")"
