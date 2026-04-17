@@ -81,25 +81,29 @@ cd r0-skills
 
 ### 2. 一键配置安装（推荐）
 
-如果你希望先从远端拉取，再自动完成 quick start，直接运行：
+如果你希望直接下载一个脚本，然后本地一键完成 clone / update + quick start，直接运行：
 
 ```bash
-./scripts/install_and_quick_start.sh
+curl -L "https://gl.quanyougame.net/lynsan/skills-man/-/raw/main/scripts/install_and_quick_start.sh?inline=false" -o /tmp/install_and_quick_start.sh
+bash /tmp/install_and_quick_start.sh
 ```
 
 默认行为：
 
-- 默认拉取远端 `github`
-- 默认拉取分支 `main`
-- 拉取成功后自动继续执行 `./scripts/quick_start.sh`
+- 默认从远端 `github` 拉取
+- 默认分支 `main`
+- 默认安装到 `~/.local/share/r0-skills`
+- 本地没有仓库时先 clone；已有仓库时做 fetch + pull --ff-only
+- 拉取成功后自动继续执行仓库内的 `scripts/quick_start.sh`
 
 常用示例：
 
 ```bash
-./scripts/install_and_quick_start.sh
-./scripts/install_and_quick_start.sh --remote origin --name lyn
-./scripts/install_and_quick_start.sh --remote cggame --branch main --allow-dirty
-./scripts/install_and_quick_start.sh --dry-run
+bash /tmp/install_and_quick_start.sh
+bash /tmp/install_and_quick_start.sh --name lyn
+bash /tmp/install_and_quick_start.sh --remote origin --install-dir ~/work/r0-skills --name lyn
+bash /tmp/install_and_quick_start.sh --remote cggame --branch main --allow-dirty
+bash /tmp/install_and_quick_start.sh --dry-run
 ```
 
 当前仓库已配置的三个远端是：
@@ -110,7 +114,7 @@ cd r0-skills
 
 推荐顺序：
 
-1. 首次 clone 后直接运行 `./scripts/install_and_quick_start.sh`
+1. 首次安装时直接下载并运行 `install_and_quick_start.sh`
 2. 需要切换自定义前缀时，加 `--name <your-prefix>`
 3. 完成后优先使用 `$HOME/.local/bin/<prefix>push` 作为固定提交入口
 
