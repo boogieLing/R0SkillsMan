@@ -25,6 +25,24 @@ DRY_RUN="false"
 
 declare -a QUICK_START_ARGS=()
 
+if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+  UI_RESET=$'\033[0m'
+  UI_BOLD=$'\033[1m'
+  UI_DIM=$'\033[2m'
+  UI_CYAN=$'\033[36m'
+  UI_GREEN=$'\033[32m'
+  UI_YELLOW=$'\033[33m'
+  UI_MAGENTA=$'\033[35m'
+else
+  UI_RESET=""
+  UI_BOLD=""
+  UI_DIM=""
+  UI_CYAN=""
+  UI_GREEN=""
+  UI_YELLOW=""
+  UI_MAGENTA=""
+fi
+
 parse_key() {
   local key="$1"
   local text="$2"
@@ -170,33 +188,33 @@ print_intro() {
     pinned_push_tool="$HOME/.local/bin/${target_prefix}push"
   fi
 
-  cat <<EOF
-
-安装完成。
-
-- 仓库位置: $repo_dir
-- 当前前缀: $target_prefix
-- 固定 push 工具: $pinned_push_tool
-- README: $repo_dir/README.md
-
-下一步建议：
-
-1. 打开 Codex 或 Claude Code
-2. 开一个新会话，确认新的 skill 前缀已经可见
-3. 直接试一下：
-
-  \$${target_prefix}-request 把这个需求整理成 DSL
-  /${target_prefix}-request 把这个需求整理成 DSL
-
-附加命令：
-
-  cd "$repo_dir"
-  $pinned_push_tool help
-
-如果只是想重新同步技能或刷新固定路径，回到仓库里重跑：
-
-  bash "$repo_dir/scripts/quick_start.sh"
-EOF
+  printf '\n'
+  printf '%b\n' "${UI_CYAN}${UI_BOLD}╔════════════════════════════════════════════════════════════╗${UI_RESET}"
+  printf '%b\n' "${UI_CYAN}${UI_BOLD}║  🎉 Skills 安装完成  (•̀ᴗ•́)و ̑̑                           ║${UI_RESET}"
+  printf '%b\n' "${UI_CYAN}${UI_BOLD}╚════════════════════════════════════════════════════════════╝${UI_RESET}"
+  printf '%b\n' "${UI_GREEN}${UI_BOLD}📦 安装信息${UI_RESET}"
+  printf '  %b仓库位置%b  %s\n' "${UI_DIM}" "${UI_RESET}" "$repo_dir"
+  printf '  %b当前前缀%b  %s\n' "${UI_DIM}" "${UI_RESET}" "$target_prefix"
+  printf '  %bPush 工具%b  %s\n' "${UI_DIM}" "${UI_RESET}" "$pinned_push_tool"
+  printf '  %bREADME%b    %s\n' "${UI_DIM}" "${UI_RESET}" "$repo_dir/README.md"
+  printf '\n'
+  printf '%b\n' "${UI_YELLOW}${UI_BOLD}🚀 下一步建议${UI_RESET}"
+  printf '  1. 打开 Codex 或 Claude Code\n'
+  printf '  2. 新开一个会话，确认新的 skill 前缀已经出现\n'
+  printf '  3. 先试这两个入口，看看新 skill 是否已经生效\n'
+  printf '\n'
+  printf '%b\n' "${UI_MAGENTA}${UI_BOLD}▶ 直接可用${UI_RESET}"
+  printf '  $%s-request 把这个需求整理成 DSL\n' "$target_prefix"
+  printf '  /%s-request 把这个需求整理成 DSL\n' "$target_prefix"
+  printf '\n'
+  printf '%b\n' "${UI_CYAN}${UI_BOLD}🧰 附加命令${UI_RESET}"
+  printf '  cd "%s"\n' "$repo_dir"
+  printf '  %s help\n' "$pinned_push_tool"
+  printf '\n'
+  printf '%b\n' "${UI_GREEN}${UI_BOLD}🔁 需要重跑时${UI_RESET}"
+  printf '  bash "%s/scripts/quick_start.sh"\n' "$repo_dir"
+  printf '\n'
+  printf '%b\n' "${UI_DIM}小提示: 如果 Codex / Claude Code 里还没看到新 skill，重新开一个新会话通常就够了。 (¬‿¬)${UI_RESET}"
 }
 
 while [[ $# -gt 0 ]]; do
