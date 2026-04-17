@@ -1,6 +1,6 @@
 ---
 name: r0-submit
-description: Submission and push safety skill for wrapping up engineering work. Use when the user asks to prepare commits, validate push scope, run review-before-push, record submission evidence, or safely invoke r0push.
+description: Submission and push safety skill for wrapping up engineering work. Use when the user asks to prepare commits, validate push scope, run review-before-push, record submission evidence, or safely invoke the bundled r0push tool.
 ---
 
 # r0-submit
@@ -24,7 +24,7 @@ MISSION
 
 ================================================================================
 
-- Never assume `r0push` only submits staged changes.
+- Never assume the bundled `r0push` tool only submits staged changes.
 - Review before push when there is any uncertainty.
 - Make scope, evidence, and rollback path explicit.
 - Keep local records out of Git tracking.
@@ -59,11 +59,19 @@ python3 scripts/prepare_submit_dry_run.py --repo-root .
 python3 scripts/check_r0push_scope.py --repo-root .
 ```
 
-5. Block the flow when:
+5. If the submit should really proceed, prefer the fixed absolute-path tool created by quick start:
+
+```bash
+$HOME/.local/bin/r0push fix "your commit message"
+```
+
+If `scripts/quick_start.sh` has already completed, this absolute path will be fixed to the synced skill tool. After namespace initialization, both the binary name and absolute path suffix will be renamed together with the chosen prefix.
+
+6. Block the flow when:
    - there is no staged change
    - unrelated dirty files exist outside `r0/`, `r0-*`, and `.gitignore`
    - commit intent is unclear
-6. If the submit proceeds, record:
+7. If the submit proceeds, record:
    - commit grouping decision
    - pre/post git status summary
    - scope-check output

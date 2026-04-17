@@ -1,20 +1,20 @@
 # r0-skills
 
-本仓库用于维护一组 `r0-*` 本地技能，面向 Codex / Claude Code 的工程实施、代码阅读、需求收敛、架构梳理、后端约束、代码审查、提交流程与写作交付等场景。
+这是一个本地 skill 仓库，主要给 Codex / Claude Code 用。
 
-它的目标不是堆很多零散 prompt，而是维护一套可安装、可同步、可演进、带共享契约的本地 skill 体系。
+仓库里放的是一组按场景拆开的 `r0-*` skills，比如需求整理、代码实施、后端约束、代码审查、提交收尾、写作交付。除了 skill 本身，这里也放了共享契约、安装脚本、同步脚本和一些本地记录规范。
 
 ## 项目定位
 
-- 以 `r0-*` 目录作为 skill 源目录。
-- 以 `shared/` 保存跨 skill 的统一契约。
-- 以 `scripts/` 保存安装同步与仓库级校验脚本。
-- 以仓库根目录下的 `r0/` 保存本地执行记录、坏例子、研究笔记与阶段产物。
+- `r0-*` 目录是各个 skill 的源码目录。
+- `shared/` 放跨 skill 复用的统一契约。
+- `scripts/` 放安装、同步、初始化和校验脚本。
+- 仓库根目录下的 `r0/` 放本地执行记录、坏例子、研究笔记和阶段产物。
 
-命名上有两层约定，不要混淆：
+命名上有两层约定：
 
-- skill 调用名、skill 目录名、安装软链名继续使用 `r0-xxx`
-- 本地产物目录统一使用 `r0/xxx`
+- skill 调用名、skill 目录名、安装软链名用 `r0-xxx`
+- 本地产物目录用 `r0/xxx`
 
 例如：
 
@@ -22,32 +22,46 @@
 - `r0-review` 的本地记录目录是 `./r0/review/`
 - `r0-work` 的本地记录目录是 `./r0/work/`
 
-## 当前目录结构
+## Skill 地图
 
-当前仓库包含以下一级目录：
+### 工程实施与提交流程
 
-- `shared/`
-- `scripts/`
-- `r0-diagram-guard/`
-- `r0-ios-agents/`
-- `r0-question/`
-- `r0-read/`
-- `r0-request/`
-- `r0-restrict/`
-- `r0-review/`
-- `r0-roadmap/`
-- `r0-skill-man/`
-- `r0-submit/`
-- `r0-work/`
-- `r0-write-lark/`
-- `r0-writer/`
+| Skill | 作用 |
+| --- | --- |
+| `r0-request` | 把自然语言需求压成结构化 DSL，并落盘到 `./r0/request/`；其价值在于把需求改写成更贴近 controller / planner 风格的执行契约，从而更容易驱动模型进入“计划 -> 执行 -> 校验 -> 更新状态”的工作流。 |
+| `r0-restrict` | 作为后端方案约束层，从数据流、IO、组件依赖三维做后端门禁，并可渐进式嵌入 `r0-request`、`r0-work`、`r0-review`。 |
+| `r0-work` | 长时间工程实施 skill，强调范围锁定、控制循环、验证、修复与交付闭环。 |
+| `r0-review` | 结构化代码审查与风险分析 skill，用于 review、回归检查与问题沉淀。 |
+| `r0-submit` | 提交与推送安全收尾 skill，用于 scope 校验、review-before-push、提交记录与安全调用 `r0push`。 |
 
-其中：
+### 代码阅读与架构理解
+
+| Skill | 作用 |
+| --- | --- |
+| `r0-roadmap` | 阅读目录 / 仓库架构，输出模块职责、功能流和 roadmap 文档。 |
+| `r0-read` | 只读型代码阅读 skill，用结构化方式理解入口、控制路径和数据流。 |
+| `r0-question` | 中文知识问答与问题澄清 skill，适合梳理概念、约束、疑点与取舍。 |
+
+### 运营与专项场景
+
+| Skill | 作用 |
+| --- | --- |
+| `r0-skill-man` | skill 生态治理与日常维护。 |
+| `r0-diagram-guard` | 针对 writing 项目中的流程图资产做门禁、修复与报告。 |
+| `r0-ios-agents` | iOS 任务总编排器，适合多 skill 协同、并行 lane 和阶段化落地。 |
+| `r0-write-lark` | 本地文章目录同步到 Lark/飞书云文档，当前稳定能力偏同步前检查与计划输出。 |
+| `r0-writer` | 面向公众号长文与项目化写作的文章交付 skill。 |
+
+### 仓库入口
 
 - `shared/r0-core-contract.md` 是当前 skill 体系的共享契约入口
+- `scripts/install_and_quick_start.sh` 负责“拉取远端 + quick start”一键配置安装
+- `scripts/quick_start.sh` 负责命名初始化、skill 同步、链接校验与 `r0push` 固定
+- `scripts/init_skill_namespace.py` 负责把仓库从 `r0-*` 改成自定义前缀
 - `scripts/check_skill_links.sh` 负责校验本地安装根中的 `r0-*` 软链状态
 - `scripts/sync_skill_links.sh` 负责同步 skill 到 `~/.codex/skills` 与 `~/.claude/skills`
 - `scripts/sync_all_remotes.sh` 负责在仓库层同步 Git 远端
+- `r0-submit/scripts/r0push` 是仓库内自带的 push 工具，会被 quick start 固定到绝对路径
 
 ## 快速开始
 
@@ -65,7 +79,108 @@ git clone git@gl.quanyougame.net:lynsan/skills-man.git r0-skills
 cd r0-skills
 ```
 
-### 2. 一键同步到本地 skill 安装目录
+### 2. 一键配置安装（推荐）
+
+如果你希望先从远端拉取，再自动完成 quick start，直接运行：
+
+```bash
+./scripts/install_and_quick_start.sh
+```
+
+默认行为：
+
+- 默认拉取远端 `github`
+- 默认拉取分支 `main`
+- 拉取成功后自动继续执行 `./scripts/quick_start.sh`
+
+常用示例：
+
+```bash
+./scripts/install_and_quick_start.sh
+./scripts/install_and_quick_start.sh --remote origin --name lyn
+./scripts/install_and_quick_start.sh --remote cggame --branch main --allow-dirty
+./scripts/install_and_quick_start.sh --dry-run
+```
+
+当前仓库已配置的三个远端是：
+
+- `github`
+- `origin`
+- `cggame`
+
+推荐顺序：
+
+1. 首次 clone 后直接运行 `./scripts/install_and_quick_start.sh`
+2. 需要切换自定义前缀时，加 `--name <your-prefix>`
+3. 完成后优先使用 `$HOME/.local/bin/<prefix>push` 作为固定提交入口
+
+### 3. 一键快速启动（本地仓库已是最新时推荐）
+
+如果你希望一次完成命名初始化、`r0push` 固定、skill 同步和链接校验，直接运行：
+
+```bash
+./scripts/quick_start.sh
+```
+
+常用示例：
+
+```bash
+./scripts/quick_start.sh --name lyn
+./scripts/quick_start.sh --name lyn --dry-run
+./scripts/quick_start.sh --name lyn --allow-dirty
+```
+
+这个脚本会顺序执行：
+
+- 命名初始化
+- skill 同步到 `~/.codex/skills` 与 `~/.claude/skills`
+- skill 链接校验
+- 将 `r0push` 固定到绝对路径 `~/.local/bin/<prefix>push`
+
+完成后，推荐直接使用这个绝对路径调用提交工具，例如：
+
+```bash
+$HOME/.local/bin/r0push help
+```
+
+执行命名初始化后，上面的 `r0push` 也会一起改成你的自定义前缀版本，例如 `$HOME/.local/bin/lynpush`。
+
+### 4. 仅初始化自己的 skill 前缀（手动模式）
+
+如果你希望把整套 `r0-*` skill 体系改成你自己的名字，先执行初始化脚本，再做本地安装同步：
+
+```bash
+python3 scripts/init_skill_namespace.py
+```
+
+默认规则：
+
+- 优先使用 `--name <your-name>`
+- 未显式传参时，尝试读取当前仓库的 Git `user.name`
+- 若 `user.name` 不可用，再尝试使用 Git `user.email` 的 `@` 前缀
+- 若都拿不到或清洗后为空，则回退到 `ouo`
+
+常用示例：
+
+```bash
+python3 scripts/init_skill_namespace.py --name lyn
+python3 scripts/init_skill_namespace.py --name lyn --dry-run
+python3 scripts/init_skill_namespace.py --name lyn --allow-dirty
+```
+
+脚本行为：
+
+- 自动探测当前 skill 前缀，例如 `r0`
+- 批量替换仓库内文本中的前缀标识
+- 重命名 `r0-*` 目录、相关脚本文件名和 `shared/r0-core-contract.md`
+- 连 `r0push`、`check_r0push_scope.py` 这类 skill 内部复合命名也会一起替换成新前缀
+- 把硬编码的 `/Users/r0/...` 路径收敛为 `$HOME/...`，避免克隆到别的机器后仍残留作者本地路径
+
+默认会阻止在 dirty worktree 上直接执行，避免误改你已经有本地变更的仓库；如果你明确知道自己在做什么，再显式加 `--allow-dirty`。
+
+`r0push` 现在也作为仓库内工具提供，位置是 `./r0-submit/scripts/r0push`；执行初始化后，这个脚本也会一起改名成你的自定义前缀版本。
+
+### 5. 一键同步到本地 skill 安装目录
 
 ```bash
 ./scripts/sync_skill_links.sh
@@ -75,6 +190,7 @@ cd r0-skills
 
 - 同步到 `~/.codex/skills`
 - 同步到 `~/.claude/skills`
+- 自动探测当前 skill 前缀，不再写死只能处理 `r0-*`
 - 对来源完整性做预检查
 - 对失效链接和同名入口做防护
 
@@ -88,25 +204,27 @@ cd r0-skills
 说明：
 
 - `--pull`：同步前先拉取最新仓库内容
-- `--allow-partial`：明确允许只同步当前仓库中的部分 `r0-*` skill
+- `--allow-partial`：明确允许只同步当前仓库中的部分 `<prefix>-*` skill
 
-### 3. 验证安装状态
+### 6. 验证安装状态
 
 ```bash
 ./scripts/check_skill_links.sh
-ls -l ~/.codex/skills | rg 'r0-'
-ls -l ~/.claude/skills | rg 'r0-'
+find ~/.codex/skills -maxdepth 1 -mindepth 1 -type l | sort
+find ~/.claude/skills -maxdepth 1 -mindepth 1 -type l | sort
 ```
 
 如果 `check_skill_links.sh` 报来源不完整、数量异常或存在失效软链，应先修复 skill 根目录或安装根，再决定是否继续同步。
 
-### 4. 手动同步方式
+### 7. 手动同步方式
 
 仅当脚本不可用时使用：
 
 ```bash
 mkdir -p ~/.codex/skills ~/.claude/skills
-for d in r0-*; do
+prefix="$(basename "$(ls shared/*-core-contract.md | head -n 1)")"
+prefix="${prefix%-core-contract.md}"
+for d in "${prefix}"-*; do
   ln -sfn "$(pwd)/$d" ~/.codex/skills/"$d"
   ln -sfn "$(pwd)/$d" ~/.claude/skills/"$d"
 done
@@ -141,36 +259,6 @@ Claude Code 侧通常用 slash command 风格：
 
 如果你已经打开了 Codex 或 Claude Code，但会话里看不到新 skill，通常重开一次会话即可。
 
-## Skill 地图
-
-### 工程实施与提交流程
-
-| Skill | 作用 |
-| --- | --- |
-| `r0-request` | 把自然语言需求压成结构化 DSL，并落盘到 `./r0/request/`。 |
-| `r0-restrict` | 作为后端方案约束层，从数据流、IO、组件依赖三维做后端门禁，并可渐进式嵌入 `r0-request`、`r0-work`、`r0-review`。 |
-| `r0-work` | 长时间工程实施 skill，强调范围锁定、控制循环、验证、修复与交付闭环。 |
-| `r0-review` | 结构化代码审查与风险分析 skill，用于 review、回归检查与问题沉淀。 |
-| `r0-submit` | 提交与推送安全收尾 skill，用于 scope 校验、review-before-push、提交记录与安全调用 `r0push`。 |
-
-### 代码阅读与架构理解
-
-| Skill | 作用 |
-| --- | --- |
-| `r0-roadmap` | 阅读目录 / 仓库架构，输出模块职责、功能流和 roadmap 文档。 |
-| `r0-read` | 只读型代码阅读 skill，用结构化方式理解入口、控制路径和数据流。 |
-| `r0-question` | 中文知识问答与问题澄清 skill，适合梳理概念、约束、疑点与取舍。 |
-
-### 运营与专项场景
-
-| Skill | 作用 |
-| --- | --- |
-| `r0-skill-man` | skill 生态治理与日常维护。 |
-| `r0-diagram-guard` | 针对 writing 项目中的流程图资产做门禁、修复与报告。 |
-| `r0-ios-agents` | iOS 任务总编排器，适合多 skill 协同、并行 lane 和阶段化落地。 |
-| `r0-write-lark` | 本地文章目录同步到 Lark/飞书云文档，当前稳定能力偏同步前检查与计划输出。 |
-| `r0-writer` | 面向公众号长文与项目化写作的文章交付 skill。 |
-
 ## 推荐工作流
 
 ### 新项目默认顺序
@@ -201,6 +289,27 @@ Claude Code 侧通常用 slash command 风格：
 - 复杂需求：`r0-roadmap -> r0-question -> r0-request -> r0-work -> r0-submit`
 - 后端方案：`r0-question -> r0-restrict -> r0-request -> r0-work`
 - 提交前质量门：`r0-work -> r0-review -> r0-submit`
+
+### `r0-request` 的行为影响边界
+
+`r0-request` 的作用是把一个松散需求整理成强结构的执行契约。它最直接的价值是让后续模型更容易按“先规划、再执行、再校验”的方式工作，而不是一上来就自由发挥。
+
+这类 DSL 通常会带来几个稳定效果：
+
+- 让任务范围更清楚，不容易一路扩需求
+- 让阶段、依赖和验证标准更明确
+- 让模型更容易进入计划式、控制器式的执行风格
+
+但边界也要写清：
+
+- 它影响的是模型行为倾向，不是宿主权限
+- 它不能把自己“伪装成内部角色”
+- 它也不能凭空开启宿主没有提供的计划模式、工具能力或其他内置功能
+
+更准确的理解是：
+
+- 如果宿主本来就支持计划模式、工具调用或阶段化执行，`r0-request` 产出的 DSL 更容易和这些能力对齐
+- 如果宿主不支持这些能力，DSL 仍然有价值，但价值主要体现在结构化约束，而不是功能解锁
 
 ### `r0-restrict` 在体系里的位置
 

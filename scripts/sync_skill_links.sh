@@ -9,6 +9,7 @@ WITH_PULL="false"
 ALLOW_PARTIAL="false"
 BACKUP_ROOT=""
 SYNC_COUNT=0
+PREFIX=""
 declare -a SKILL_DIRS=()
 
 usage() {
@@ -19,7 +20,8 @@ usage() {
 说明:
   - 默认仅重建软链接，不执行 git pull
   - --pull: 先在仓库根目录执行 git pull --ff-only，再同步软链接
-  - 若检测到当前仓库只包含部分 r0-* skills，脚本会默认阻断，避免把已有链接切到错误来源
+  - 自动探测当前 skill 前缀，例如 r0 / lyn / ouo
+  - 若检测到当前仓库只包含部分 <prefix>-* skills，脚本会默认阻断，避免把已有链接切到错误来源
   - --allow-partial: 明确允许在部分技能镜像上执行，仅建议在你确认目标行为时使用
 
 可选环境变量:
@@ -28,14 +30,44 @@ usage() {
 EOF
 }
 
+detect_prefix() {
+  local contract_file skill_dir
+
+  shopt -s nullglob
+  for contract_file in "$ROOT_DIR"/shared/*-core-contract.md; do
+    PREFIX="$(basename "$contract_file")"
+    PREFIX="${PREFIX%-core-contract.md}"
+    if [[ -n "$PREFIX" ]]; then
+      return
+    fi
+  done
+
+  for skill_dir in "$ROOT_DIR"/*-request; do
+    [[ -d "$skill_dir" ]] || continue
+    PREFIX="$(basename "$skill_dir")"
+    PREFIX="${PREFIX%-request}"
+    if [[ -n "$PREFIX" ]]; then
+      return
+    fi
+  done
+
+  echo "无法探测当前 skill 前缀: ROOT_DIR=$ROOT_DIR" >&2
+  exit 4
+}
+
 ensure_link() {
   local src="$1"
   local dst="$2"
   local parent
+  local current_target=""
   parent="$(dirname "$dst")"
   mkdir -p "$parent"
 
   if [[ -L "$dst" ]]; then
+    current_target="$(readlink "$dst")"
+    if [[ "$current_target" == "$src" ]]; then
+      return
+    fi
     ln -sfn "$src" "$dst"
     return
   fi
@@ -54,7 +86,7 @@ ensure_link() {
 collect_skill_dirs() {
   local skill_dir
   SKILL_DIRS=()
-  for skill_dir in "$ROOT_DIR"/r0-*; do
+  for skill_dir in "$ROOT_DIR"/"$PREFIX"-*; do
     [[ -d "$skill_dir" ]] || continue
     SKILL_DIRS+=("$skill_dir")
   done
@@ -63,7 +95,7 @@ collect_skill_dirs() {
 count_existing_skill_links() {
   local base_dir="$1"
   [[ -d "$base_dir" ]] || return 0
-  find "$base_dir" -maxdepth 1 -mindepth 1 -name 'r0-*' | wc -l | tr -d ' '
+  find "$base_dir" -maxdepth 1 -mindepth 1 -name "${PREFIX}-*" | wc -l | tr -d ' '
 }
 
 assert_safe_source_layout() {
@@ -71,7 +103,7 @@ assert_safe_source_layout() {
   local codex_count claude_count existing_max
 
   if [[ "$current_count" -eq 0 ]]; then
-    echo "未找到任何 r0-* skill 目录: $ROOT_DIR" >&2
+    echo "未找到任何 ${PREFIX}-* skill 目录: $ROOT_DIR" >&2
     exit 1
   fi
 
@@ -87,9 +119,10 @@ assert_safe_source_layout() {
   fi
 
   if (( existing_max > current_count )); then
-    echo "检测到当前仓库仅含 $current_count 个 r0-* 目录，但目标技能根目录已有更多技能。" >&2
+    echo "检测到当前仓库仅含 $current_count 个 ${PREFIX}-* 目录，但目标技能根目录已有更多技能。" >&2
     echo "为避免把现有软链接切到不完整来源，默认停止同步。" >&2
     echo "ROOT_DIR=$ROOT_DIR" >&2
+    echo "PREFIX=$PREFIX" >&2
     echo "CODEX_DIR=$CODEX_DIR (count=$codex_count)" >&2
     echo "CLAUDE_DIR=$CLAUDE_DIR (count=$claude_count)" >&2
     echo "如确认只想同步当前这部分技能，请显式添加 --allow-partial。" >&2
@@ -108,7 +141,7 @@ assert_skill_entrypoints() {
   done
 
   if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "以下 r0-* 目录缺少 SKILL.md，停止同步：" >&2
+    echo "以下 ${PREFIX}-* 目录缺少 SKILL.md，停止同步：" >&2
     printf ' - %s\n' "${missing[@]}" >&2
     exit 3
   fi
@@ -140,6 +173,7 @@ if [[ "$WITH_PULL" == "true" ]]; then
   git -C "$ROOT_DIR" pull --ff-only
 fi
 
+detect_prefix
 collect_skill_dirs
 assert_safe_source_layout "${#SKILL_DIRS[@]}"
 assert_skill_entrypoints
@@ -153,6 +187,7 @@ for skill_dir in "${SKILL_DIRS[@]}"; do
 done
 
 echo "同步完成: $SYNC_COUNT 个 skills"
+echo "Skill 前缀: $PREFIX"
 echo "Codex 目录: $CODEX_DIR"
 echo "Claude 目录: $CLAUDE_DIR"
 if [[ -n "$BACKUP_ROOT" ]]; then

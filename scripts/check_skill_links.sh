@@ -5,14 +5,40 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CODEX_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
+PREFIX=""
 declare -a SOURCE_SKILLS=()
 declare -a SOURCE_SKILL_ENTRY_ISSUES=()
+
+detect_prefix() {
+  local contract_file skill_dir
+
+  shopt -s nullglob
+  for contract_file in "$ROOT_DIR"/shared/*-core-contract.md; do
+    PREFIX="$(basename "$contract_file")"
+    PREFIX="${PREFIX%-core-contract.md}"
+    if [[ -n "$PREFIX" ]]; then
+      return
+    fi
+  done
+
+  for skill_dir in "$ROOT_DIR"/*-request; do
+    [[ -d "$skill_dir" ]] || continue
+    PREFIX="$(basename "$skill_dir")"
+    PREFIX="${PREFIX%-request}"
+    if [[ -n "$PREFIX" ]]; then
+      return
+    fi
+  done
+
+  echo "[FAIL] 无法探测当前 skill 前缀: ROOT_DIR=$ROOT_DIR" >&2
+  exit 5
+}
 
 collect_source_skills() {
   local skill_dir
   SOURCE_SKILLS=()
   SOURCE_SKILL_ENTRY_ISSUES=()
-  for skill_dir in "$ROOT_DIR"/r0-*; do
+  for skill_dir in "$ROOT_DIR"/"$PREFIX"-*; do
     [[ -d "$skill_dir" ]] || continue
     SOURCE_SKILLS+=("$(basename "$skill_dir")")
     if [[ ! -f "$skill_dir/SKILL.md" ]]; then
@@ -27,7 +53,7 @@ count_skill_entries() {
     echo 0
     return
   }
-  find "$base_dir" -maxdepth 1 -mindepth 1 -name 'r0-*' | wc -l | tr -d ' '
+  find "$base_dir" -maxdepth 1 -mindepth 1 -name "${PREFIX}-*" | wc -l | tr -d ' '
 }
 
 print_list() {
@@ -65,7 +91,7 @@ inspect_target_dir() {
         missing_skill+=("$(basename "$entry")")
         issue_count=$((issue_count + 1))
       fi
-    done < <(find "$base_dir" -maxdepth 1 -mindepth 1 -name 'r0-*' | sort)
+    done < <(find "$base_dir" -maxdepth 1 -mindepth 1 -name "${PREFIX}-*" | sort)
   fi
 
   echo "[$label]"
@@ -95,6 +121,7 @@ inspect_target_dir() {
 main() {
   local source_count codex_count claude_count status=0
 
+  detect_prefix
   collect_source_skills
   source_count="${#SOURCE_SKILLS[@]}"
   codex_count="$(count_skill_entries "$CODEX_DIR")"
@@ -102,6 +129,7 @@ main() {
 
   echo "[source]"
   echo "root_dir=$ROOT_DIR"
+  echo "prefix=$PREFIX"
   echo "source_count=$source_count"
   print_list "source_skills:" "${SOURCE_SKILLS[@]}"
   if [[ ${#SOURCE_SKILL_ENTRY_ISSUES[@]} -gt 0 ]]; then
@@ -112,17 +140,17 @@ main() {
   echo
 
   if (( source_count == 0 )); then
-    echo "[FAIL] 当前仓库未找到任何 r0-* skill 目录。" >&2
+    echo "[FAIL] 当前仓库未找到任何 ${PREFIX}-* skill 目录。" >&2
     status=1
   fi
 
   if (( ${#SOURCE_SKILL_ENTRY_ISSUES[@]} > 0 )); then
-    echo "[FAIL] 当前来源存在缺少 SKILL.md 的 r0-* 目录。" >&2
+    echo "[FAIL] 当前来源存在缺少 SKILL.md 的 ${PREFIX}-* 目录。" >&2
     status=4
   fi
 
   if (( codex_count > source_count || claude_count > source_count )); then
-    echo "[WARN] 当前来源包含的 r0-* skills 少于目标目录现有条目，疑似部分镜像或来源不完整。" >&2
+    echo "[WARN] 当前来源包含的 ${PREFIX}-* skills 少于目标目录现有条目，疑似部分镜像或来源不完整。" >&2
     if (( status == 0 )); then
       status=2
     fi
