@@ -11,6 +11,13 @@ description: 把自然语言需求转换为结构化提示词 DSL，并尽量贴
 - 本技能的本地记录目录固定为 `./r0/request/`。
 - 每次执行结束后，除 DSL 正文外，还必须补充一次结果摘要或自动进化记录到 `./r0/request/`。
 
+## R0-RESTRICT 兼容层（后端方案场景强制）
+- 当需求涉及后端技术方案设计、接口设计、数据库、Redis、RPC、MQ、定时任务、分布式锁、To-C 高并发链路时，必须加载 `../r0-restrict/SKILL.md`。
+- 采用渐进式披露：先只读取 `r0-restrict` 主技能；只有在确认属于后端方案约束或需要 To-C 细则时，才继续读取 [../r0-restrict/references/backend-scheme-guardrails.md](../r0-restrict/references/backend-scheme-guardrails.md)。
+- `r0-restrict` 产出的约束只能嵌入现有模板字段，不允许新增模板章节；优先落入：`NFRS`、`Data Flow Rules`、`Known Issues`、`Constraint System`、`Validation System`、`Success Criteria`、`DO_NOT_LIST`。
+- 后端方案 DSL 至少要显式编码：数据流主链、禁止循环 IO、批量读写策略、扫库/扫缓存边界、缓存 TTL / 热点 Key 策略、幂等性、重试与超时、版本兼容、可观测性；To-C 场景再补限流/降级/熔断、防刷与 RT 约束。
+- 若输入信息不足以判断上述约束，只能写 `ASSUMPTION:` / `待确认`，不得伪造容量、QPS、RT 或存储选型。
+
 ## 核心职责
 - 将用户的自然语言目标压缩成可执行的提示词 DSL，而不是普通方案描述。
 - 优先复用模板骨架，保留 `0` 到 `14` 的章节顺序与约束语义。

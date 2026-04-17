@@ -4,6 +4,8 @@ r0/
 r0-*/
 !/r0-request/
 !/r0-request/**
+!/r0-restrict/
+!/r0-restrict/**
 !/r0-diagram-guard/
 !/r0-diagram-guard/**
 !/r0-ios-agents/

@@ -49,6 +49,35 @@ Minimum mapping from `r0-request` to `r0-work`:
 
 ================================================================================
 
+R0-RESTRICT COMPATIBILITY (MANDATORY FOR BACKEND DESIGN / IO-HEAVY CHANGES)
+
+================================================================================
+
+When the task is backend or backend-related infrastructure and touches any of the following:
+- DB / cache / RPC / MQ / cron / distributed lock
+- read-write path design or consistency model
+- To-C traffic-facing API or high-concurrency chain
+
+You MUST:
+1. Load `../r0-restrict/SKILL.md` before design finalization.
+2. Use progressive disclosure:
+   - Load `r0-restrict` main skill first.
+   - Load `../r0-restrict/references/backend-scheme-guardrails.md` only when detailed backend or To-C guardrails are needed.
+3. Establish a three-axis gate before coding:
+   - data flow
+   - IO operations
+   - component dependencies
+4. Convert the gate into implementation constraints and verification items instead of keeping it as prose only.
+5. Stop and report before implementation if the current direction contains any of these unhandled risks:
+   - IO inside loops
+   - unbounded scan / missing index boundary
+   - missing cache TTL / unsafe hot-key invalidation
+   - unsafe lock timeout / no watchdog / no compensation
+   - missing idempotency / retry strategy
+   - missing version compatibility or observability for user-facing APIs
+
+================================================================================
+
 LONG-RUNNING WORK MODE (MANDATORY FOR NON-TRIVIAL EXECUTION)
 
 ================================================================================
@@ -608,6 +637,7 @@ When writing FRONTEND code:
 When writing BACKEND code:
 - Prioritize performance, algorithmic efficiency, and robustness.
 - Think from the perspective of a senior backend & algorithm engineer.
+- Treat `r0-restrict` as the design gate for data flow, IO, and dependency blast radius whenever the task is not a trivial local fix.
 - Pay close attention to:
   - Time complexity
   - Space complexity

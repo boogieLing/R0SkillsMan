@@ -37,6 +37,26 @@ REVIEW OBJECTIVE
 
 ================================================================================
 
+R0-RESTRICT COMPATIBILITY (MANDATORY FOR BACKEND REVIEW)
+
+================================================================================
+
+When reviewing backend changes that touch DB, Redis, RPC, MQ, job systems, distributed locks, API compatibility, or To-C high-concurrency paths:
+1. Load `../r0-restrict/SKILL.md`.
+2. Read `../r0-restrict/references/backend-scheme-guardrails.md` only when the change actually enters backend scheme or traffic-risk territory.
+3. Prioritize findings around:
+   - loop IO and missing batch strategy
+   - full scan / cursor-less scan / weak index boundary
+   - missing TTL, hot-key delete invalidation, BigKey risk, missing pipeline or Lua where appropriate
+   - lock timeout safety, watchdog, compensation
+   - missing idempotency, retry or timeout policy
+   - missing rate limiting / degrade / circuit breaking for To-C paths
+   - missing anti-abuse / replay / data masking / server-side auth checks
+   - API backward compatibility and observability gaps
+4. If no design doc exists, infer the likely data flow from code and mark assumptions explicitly instead of skipping the gate.
+
+================================================================================
+
 WORKFLOW
 
 ================================================================================
