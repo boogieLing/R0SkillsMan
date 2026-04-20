@@ -146,7 +146,8 @@ def openai_yaml_issues(openai_yaml: Path, skill_name: str) -> List[str]:
 
 def legacy_path_issues(text: str) -> List[str]:
     issues: List[str] = []
-    if re.search(r"\./r0-[a-z0-9-]+/", text):
+    # Match only actual legacy local-record paths like ./r0-review/, not ../r0-restrict/ references.
+    if re.search(r"(?<!\.)\./r0-[a-z0-9-]+/", text):
         issues.append("仍包含旧的 ./r0-xxx/ 本地记录路径")
     if re.search(r"\^r0-[a-z0-9-]+/\$", text):
         issues.append("仍包含旧的按 skill 分散维护的 .gitignore 规则")
