@@ -23,6 +23,7 @@ WITH_PULL="false"
 DRY_RUN="false"
 NAME=""
 BACKUP_ROOT=""
+SOURCE_SKILL_COUNT=0
 
 usage() {
   cat <<'EOF'
@@ -159,6 +160,8 @@ fi
 
 bash "$ROOT_DIR/scripts/check_skill_links.sh"
 
+SOURCE_SKILL_COUNT="$(find "$ROOT_DIR" -maxdepth 1 -mindepth 1 -type d -name "${TARGET_PREFIX}-*" | wc -l | tr -d ' ')"
+
 if [[ ! -x "$SYNCED_PUSH_TOOL" ]]; then
   echo "未找到可执行 push 工具: $SYNCED_PUSH_TOOL" >&2
   exit 1
@@ -169,6 +172,7 @@ ensure_link "$SYNCED_PUSH_TOOL" "$PINNED_PUSH_TOOL"
 echo "target_prefix=$TARGET_PREFIX"
 echo "pinned_push_tool=$PINNED_PUSH_TOOL"
 echo "synced_push_tool=$SYNCED_PUSH_TOOL"
+echo "source_skill_count=$SOURCE_SKILL_COUNT"
 echo "codex_dir=$CODEX_DIR"
 echo "claude_dir=$CLAUDE_DIR"
 if [[ -n "$BACKUP_ROOT" ]]; then

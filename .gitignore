@@ -22,6 +22,8 @@ r0-*/
 !/r0-skill-man/**
 !/r0-submit/
 !/r0-submit/**
+!/r0-tech-graph/
+!/r0-tech-graph/**
 !/r0-work/
 !/r0-work/**
 !/r0-writer/

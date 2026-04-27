@@ -48,6 +48,7 @@
 | --- | --- |
 | `r0-skill-man` | skill 生态治理与日常维护。 |
 | `r0-diagram-guard` | 针对 writing 项目中的流程图资产做门禁、修复与报告。 |
+| `r0-tech-graph` | 面向技术架构图的浅色 HTML 绘图 skill，最终产物对齐 `architecture-diagram-generator` 的自包含 HTML，同时融合 SVG 模板、Flat UI Colors US 色系、布局校验和可选 PNG 导出能力。 |
 | `r0-ios-agents` | iOS 任务总编排器，适合多 skill 协同、并行 lane 和阶段化落地。 |
 | `r0-write-lark` | 本地文章目录同步到 Lark/飞书云文档，当前稳定能力偏同步前检查与计划输出。 |
 | `r0-writer` | 面向公众号长文与项目化写作的文章交付 skill。 |
@@ -141,6 +142,7 @@ bash /tmp/install_and_quick_start.sh --dry-run
 - skill 同步到 `~/.codex/skills` 与 `~/.claude/skills`
 - skill 链接校验
 - 将 `r0push` 固定到绝对路径 `~/.local/bin/<prefix>push`
+- 输出 `source_skill_count`，用于确认当前仓库中的 `<prefix>-*` skill 已进入快速启动链路
 
 完成后，推荐直接使用这个绝对路径调用提交工具，例如：
 
@@ -281,6 +283,7 @@ done
 - `$r0-review`
 - `$r0-submit`
 - `$r0-writer 把我的资料整理成一篇公众号长文，并补齐 outline、style 和 draft。`
+- `$r0-tech-graph 画一个浅色 HTML 系统架构图，包含客户端、网关、服务层、数据库和消息队列。`
 
 ### Claude Code
 
@@ -292,6 +295,7 @@ Claude Code 侧通常用 slash command 风格：
 - `/r0-work 完成这个需求，范围限制在 api 和 service 层。`
 - `/r0-review`
 - `/r0-submit`
+- `/r0-tech-graph 画一个浅色 HTML 系统架构图，包含 Agent、Tools、Memory 和外部 API。`
 
 如果你已经打开了 Codex 或 Claude Code，但会话里看不到新 skill，通常重开一次会话即可。
 
@@ -390,12 +394,14 @@ cd /path/to/r0-skills
 
 ```bash
 ./scripts/sync_all_remotes.sh
+./scripts/sync_all_remotes.sh --remote github --remote origin --remote cggame
 ./scripts/sync_all_remotes.sh --remote origin --remote github
 ./scripts/sync_all_remotes.sh --branch main
 ```
 
 说明：
 
+- 当前标准三端为 `github`、`origin`、`cggame`；不传 `--remote` 时脚本会同步到所有已配置远端
 - 脚本会先检查当前仓库是否像一个“完整 skill 来源”
 - 若工作树中存在本地 skill 目录，但尚未纳入 Git tracked scope，预检可能把它视为 partial source
 - 若明确只想同步当前仓库已追踪的范围，可使用：

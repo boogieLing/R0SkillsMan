@@ -1,0 +1,4 @@
+interface:
+  display_name: "R0 Tech Graph"
+  short_description: "Generate light technical architecture HTML"
+  default_prompt: "使用 $r0-tech-graph 将系统或流程描述绘制成浅色自包含 HTML 技术架构图。"

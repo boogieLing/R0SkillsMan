@@ -201,11 +201,13 @@ print_intro() {
   printf '%b\n' "${UI_YELLOW}${UI_BOLD}🚀 下一步建议${UI_RESET}"
   printf '  1. 打开 Codex 或 Claude Code\n'
   printf '  2. 新开一个会话，确认新的 skill 前缀已经出现\n'
-  printf '  3. 先试这两个入口，看看新 skill 是否已经生效\n'
+  printf '  3. 先试下面入口，看看新 skill 是否已经生效\n'
   printf '\n'
   printf '%b\n' "${UI_MAGENTA}${UI_BOLD}▶ 直接可用${UI_RESET}"
   printf '  $%s-request 把这个需求整理成 DSL\n' "$target_prefix"
+  printf '  $%s-tech-graph 画一个浅色 HTML 系统架构图\n' "$target_prefix"
   printf '  /%s-request 把这个需求整理成 DSL\n' "$target_prefix"
+  printf '  /%s-tech-graph 画一个浅色 HTML 系统架构图\n' "$target_prefix"
   printf '\n'
   printf '%b\n' "${UI_CYAN}${UI_BOLD}🧰 附加命令${UI_RESET}"
   printf '  cd "%s"\n' "$repo_dir"
