@@ -164,9 +164,8 @@ ensure_not_behind_upstream() {
     return 0
   fi
 
-  counts="$(git -C "$ROOT_DIR" rev-list --left-right --count "${upstream}...HEAD")"
-  behind="${counts%% *}"
-  ahead="${counts##* }"
+  counts="$(git -C "$ROOT_DIR" rev-list --left-right --count "${upstream}...HEAD" | tr '\t' ' ')"
+  read -r behind ahead <<<"$counts"
   if [[ "$behind" -gt 0 ]]; then
     echo "当前分支落后 upstream: upstream=$upstream behind=$behind ahead=$ahead" >&2
     echo "请先执行 git pull --ff-only 或完成人工复核后再推送。" >&2
