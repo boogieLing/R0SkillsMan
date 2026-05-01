@@ -5,6 +5,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CODEX_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
+PYTHON_BIN="${PYTHON_BIN:-}"
 BRANCH=""
 ALLOW_PARTIAL_SCOPE="false"
 DRY_RUN="false"
@@ -31,6 +32,27 @@ usage() {
   ./scripts/sync_all_remotes.sh --remote origin --remote github
   ./scripts/sync_all_remotes.sh --branch main --dry-run
 EOF
+}
+
+resolve_python_bin() {
+  if [[ -n "$PYTHON_BIN" && -x "$PYTHON_BIN" ]]; then
+    echo "$PYTHON_BIN"
+    return 0
+  fi
+  if [[ -x /opt/homebrew/bin/python3 ]]; then
+    echo /opt/homebrew/bin/python3
+    return 0
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    command -v python3
+    return 0
+  fi
+  if command -v python >/dev/null 2>&1; then
+    command -v python
+    return 0
+  fi
+  echo "未找到可用 Python 解释器。" >&2
+  return 1
 }
 
 while [[ $# -gt 0 ]]; do
@@ -198,7 +220,7 @@ check_remote_host_resolution() {
     return 0
   fi
 
-  if ! REMOTE_HOST="$remote_host" python3 - <<'PY'
+  if ! REMOTE_HOST="$remote_host" "$PYTHON_BIN" - <<'PY'
 import os
 import socket
 
@@ -239,6 +261,8 @@ if ! git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "当前目录不是 Git 仓库: $ROOT_DIR" >&2
   exit 1
 fi
+
+PYTHON_BIN="$(resolve_python_bin)"
 
 if [[ -z "$BRANCH" ]]; then
   BRANCH="$(resolve_branch_name || true)"
