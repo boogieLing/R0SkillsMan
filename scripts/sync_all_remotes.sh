@@ -198,11 +198,11 @@ check_remote_host_resolution() {
     return 0
   fi
 
-  if ! python3 - "$remote_host" <<'PY'
+  if ! REMOTE_HOST="$remote_host" python3 - <<'PY'
+import os
 import socket
-import sys
 
-host = sys.argv[1]
+host = os.environ["REMOTE_HOST"]
 try:
     socket.getaddrinfo(host, None)
 except OSError as exc:
