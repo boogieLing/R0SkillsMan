@@ -7,6 +7,7 @@ CODEX_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 BRANCH=""
 ALLOW_PARTIAL_SCOPE="false"
+DRY_RUN="false"
 declare -a TARGET_REMOTES=()
 declare -a TRACKED_SKILLS=()
 declare -a SCOPE_BLOCKERS=()
@@ -14,7 +15,7 @@ declare -a SCOPE_BLOCKERS=()
 usage() {
   cat <<'EOF'
 用法:
-  sync_all_remotes.sh [--branch <name>] [--remote <name>]... [--allow-partial-scope]
+  sync_all_remotes.sh [--branch <name>] [--remote <name>]... [--allow-partial-scope] [--dry-run]
 
 说明:
   - 默认同步当前分支到全部已配置远端
@@ -22,11 +23,13 @@ usage() {
   - 可重复使用 --remote，只同步指定远端
   - 默认先做 skill scope 与远端连通性预检；若当前仓库只是裁剪/部分来源，会阻断远端同步
   - --allow-partial-scope: 明确允许在 partial skill source 上继续远端同步，仅建议在你确认风险时使用
+  - --dry-run: 仅执行分支/skill scope/Git 状态/DNS 预检，不实际 push
 
 示例:
   ./scripts/sync_all_remotes.sh
   ./scripts/sync_all_remotes.sh --branch main
   ./scripts/sync_all_remotes.sh --remote origin --remote github
+  ./scripts/sync_all_remotes.sh --branch main --dry-run
 EOF
 }
 
@@ -50,6 +53,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --allow-partial-scope)
       ALLOW_PARTIAL_SCOPE="true"
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN="true"
       shift
       ;;
     -h|--help)
@@ -136,6 +143,37 @@ run_scope_preflight() {
     fi
     echo "[WARN] 已显式允许 partial scope，继续执行远端同步。" >&2
   fi
+}
+
+ensure_clean_worktree() {
+  local status_output
+  status_output="$(git -C "$ROOT_DIR" status --short --untracked-files=all)"
+  if [[ -n "$status_output" ]]; then
+    echo "检测到未提交改动，默认停止远端同步：" >&2
+    printf '%s\n' "$status_output" >&2
+    echo "请先提交、丢弃或同步这些改动后再执行远端同步。" >&2
+    exit 3
+  fi
+}
+
+ensure_not_behind_upstream() {
+  local upstream ahead behind counts
+  upstream="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
+  if [[ -z "$upstream" ]]; then
+    echo "[INFO] 当前分支未配置 upstream，跳过 behind 检查。"
+    return 0
+  fi
+
+  counts="$(git -C "$ROOT_DIR" rev-list --left-right --count "${upstream}...HEAD")"
+  behind="${counts%% *}"
+  ahead="${counts##* }"
+  if [[ "$behind" -gt 0 ]]; then
+    echo "当前分支落后 upstream: upstream=$upstream behind=$behind ahead=$ahead" >&2
+    echo "请先执行 git pull --ff-only 或完成人工复核后再推送。" >&2
+    exit 4
+  fi
+
+  echo "[OK] upstream preflight: upstream=$upstream ahead=$ahead behind=$behind"
 }
 
 extract_remote_host() {
@@ -225,9 +263,12 @@ if [[ ${#TARGET_REMOTES[@]} -eq 0 ]]; then
 fi
 
 run_scope_preflight
+ensure_clean_worktree
+ensure_not_behind_upstream
 
 echo "准备同步分支: $BRANCH"
 echo "目标远端: ${TARGET_REMOTES[*]}"
+echo "模式: $([[ "$DRY_RUN" == "true" ]] && echo dry-run || echo apply)"
 
 for remote_name in "${TARGET_REMOTES[@]}"; do
   remote_url=""
@@ -238,8 +279,17 @@ for remote_name in "${TARGET_REMOTES[@]}"; do
   remote_url="$(git -C "$ROOT_DIR" remote get-url "$remote_name")"
   check_remote_host_resolution "$remote_name" "$remote_url"
 
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "[DRY-RUN] git -C '$ROOT_DIR' push '$remote_name' '$BRANCH'"
+    continue
+  fi
+
   echo "推送到远端: $remote_name"
   git -C "$ROOT_DIR" push "$remote_name" "$BRANCH"
 done
 
-echo "全部远端同步完成。"
+if [[ "$DRY_RUN" == "true" ]]; then
+  echo "全部远端同步预检完成。"
+else
+  echo "全部远端同步完成。"
+fi

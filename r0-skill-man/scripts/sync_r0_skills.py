@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
 
 IGNORE_NAMES = {".DS_Store", "Thumbs.db"}
-AUXILIARY_DIRS = ("shared",)
+AUXILIARY_DIRS = ("shared", "scripts")
 
 
 @dataclass
@@ -28,6 +28,8 @@ class SyncStats:
     created_dirs: int = 0
     deleted_files: int = 0
     deleted_dirs: int = 0
+    target_only_files: int = 0
+    target_only_dirs: int = 0
 
     def merge(self, other: "SyncStats") -> None:
         self.created_files += other.created_files
@@ -35,6 +37,8 @@ class SyncStats:
         self.created_dirs += other.created_dirs
         self.deleted_files += other.deleted_files
         self.deleted_dirs += other.deleted_dirs
+        self.target_only_files += other.target_only_files
+        self.target_only_dirs += other.target_only_dirs
 
 
 def expand_roots(roots: Iterable[str]) -> List[Path]:
@@ -129,6 +133,18 @@ def sync_one_skill(source: Path, target: Path, dry_run: bool, prune: bool) -> Sy
                 dst_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(src_path, dst_path)
 
+    if not prune and target.exists():
+        for dst_path in target.rglob("*"):
+            if dst_path.name in IGNORE_NAMES:
+                continue
+            rel = dst_path.relative_to(target)
+            if rel in source_items:
+                continue
+            if dst_path.is_file() or dst_path.is_symlink():
+                stats.target_only_files += 1
+            elif dst_path.is_dir():
+                stats.target_only_dirs += 1
+
     if prune and target.exists():
         # Remove files/dirs not present in source.
         target_items = sorted(
@@ -156,7 +172,8 @@ def format_stats(stats: SyncStats) -> str:
     return (
         f"created_dirs={stats.created_dirs}, created_files={stats.created_files}, "
         f"updated_files={stats.updated_files}, deleted_files={stats.deleted_files}, "
-        f"deleted_dirs={stats.deleted_dirs}"
+        f"deleted_dirs={stats.deleted_dirs}, target_only_files={stats.target_only_files}, "
+        f"target_only_dirs={stats.target_only_dirs}"
     )
 
 
@@ -169,8 +186,8 @@ def sync_auxiliary_dir(dir_name: str, roots: List[Path], dry_run: bool, prune: b
     source = max(existing, key=latest_tree_mtime)
     print(f"\n[{dir_name}] source={source}")
     seen_targets: Set[Path] = set()
-    for root in roots:
-        target = (root / dir_name).resolve()
+    for target in existing:
+        target = target.resolve()
         if target == source or target in seen_targets:
             continue
         seen_targets.add(target)
@@ -183,11 +200,21 @@ def sync_auxiliary_dir(dir_name: str, roots: List[Path], dry_run: bool, prune: b
                 delta.updated_files,
                 delta.deleted_files,
                 delta.deleted_dirs,
+                delta.target_only_files,
+                delta.target_only_dirs,
             ]
         ):
             print(f"  -> {target}: {format_stats(delta)}")
     if not any(
-        [stats.created_dirs, stats.created_files, stats.updated_files, stats.deleted_files, stats.deleted_dirs]
+        [
+            stats.created_dirs,
+            stats.created_files,
+            stats.updated_files,
+            stats.deleted_files,
+            stats.deleted_dirs,
+            stats.target_only_files,
+            stats.target_only_dirs,
+        ]
     ):
         print("  -> no changes")
     return stats
@@ -257,6 +284,8 @@ def main() -> int:
                     stats.updated_files,
                     stats.deleted_files,
                     stats.deleted_dirs,
+                    stats.target_only_files,
+                    stats.target_only_dirs,
                 ]
             ):
                 print(f"  -> {target}: {format_stats(stats)}")
@@ -268,6 +297,8 @@ def main() -> int:
                 per_skill.updated_files,
                 per_skill.deleted_files,
                 per_skill.deleted_dirs,
+                per_skill.target_only_files,
+                per_skill.target_only_dirs,
             ]
         ):
             print("  -> no changes")
