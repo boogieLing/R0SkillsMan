@@ -6,12 +6,14 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CODEX_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
 CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
 PYTHON_BIN="${PYTHON_BIN:-}"
+SSH_CONNECT_TIMEOUT="${SSH_CONNECT_TIMEOUT:-10}"
 BRANCH=""
 ALLOW_PARTIAL_SCOPE="false"
 DRY_RUN="false"
 declare -a TARGET_REMOTES=()
 declare -a TRACKED_SKILLS=()
 declare -a SCOPE_BLOCKERS=()
+declare -a PREFLIGHT_FAILURES=()
 
 usage() {
   cat <<'EOF'
@@ -22,9 +24,9 @@ usage() {
   - 默认同步当前分支到全部已配置远端
   - 可通过 --branch 指定分支
   - 可重复使用 --remote，只同步指定远端
-  - 默认先做 skill scope 与远端连通性预检；若当前仓库只是裁剪/部分来源，会阻断远端同步
+  - 默认先做 skill scope 与远端 DNS / transport 连通性预检；若当前仓库只是裁剪/部分来源，会阻断远端同步
   - --allow-partial-scope: 明确允许在 partial skill source 上继续远端同步，仅建议在你确认风险时使用
-  - --dry-run: 仅执行分支/skill scope/Git 状态/DNS 预检，不实际 push
+  - --dry-run: 仅执行分支/skill scope/Git 状态/DNS / transport 预检，不实际 push
 
 示例:
   ./scripts/sync_all_remotes.sh
@@ -239,6 +241,18 @@ PY
   echo "[OK] remote DNS: $remote_name -> $remote_host"
 }
 
+check_remote_transport_access() {
+  local remote_name="$1"
+
+  if ! GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" \
+    git -C "$ROOT_DIR" ls-remote "$remote_name" HEAD >/dev/null 2>&1; then
+    echo "远端传输预检失败: $remote_name (无法完成 git ls-remote HEAD)" >&2
+    return 1
+  fi
+
+  echo "[OK] remote transport: $remote_name"
+}
+
 resolve_branch_name() {
   local current_branch
 
@@ -296,20 +310,37 @@ echo "模式: $([[ "$DRY_RUN" == "true" ]] && echo dry-run || echo apply)"
 for remote_name in "${TARGET_REMOTES[@]}"; do
   remote_url=""
   if ! git -C "$ROOT_DIR" remote get-url "$remote_name" >/dev/null 2>&1; then
-    echo "远端不存在: $remote_name" >&2
-    exit 1
+    PREFLIGHT_FAILURES+=("$remote_name: 远端不存在")
+    continue
   fi
   remote_url="$(git -C "$ROOT_DIR" remote get-url "$remote_name")"
-  check_remote_host_resolution "$remote_name" "$remote_url"
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY-RUN] git -C '$ROOT_DIR' push '$remote_name' '$BRANCH'"
+  if ! check_remote_host_resolution "$remote_name" "$remote_url"; then
+    PREFLIGHT_FAILURES+=("$remote_name: DNS 预检失败")
+    continue
+  fi
+  if ! check_remote_transport_access "$remote_name"; then
+    PREFLIGHT_FAILURES+=("$remote_name: 传输预检失败")
     continue
   fi
 
-  echo "推送到远端: $remote_name"
-  git -C "$ROOT_DIR" push "$remote_name" "$BRANCH"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "[DRY-RUN] git -C '$ROOT_DIR' push '$remote_name' '$BRANCH'"
+  fi
 done
+
+if [[ ${#PREFLIGHT_FAILURES[@]} -gt 0 ]]; then
+  echo "远端同步预检失败：" >&2
+  printf '%s\n' "${PREFLIGHT_FAILURES[@]}" | sed 's/^/- /' >&2
+  exit 6
+fi
+
+if [[ "$DRY_RUN" != "true" ]]; then
+  for remote_name in "${TARGET_REMOTES[@]}"; do
+    echo "推送到远端: $remote_name"
+    GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=$SSH_CONNECT_TIMEOUT" \
+      git -C "$ROOT_DIR" push "$remote_name" "$BRANCH"
+  done
+fi
 
 if [[ "$DRY_RUN" == "true" ]]; then
   echo "全部远端同步预检完成。"

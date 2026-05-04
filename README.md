@@ -403,6 +403,7 @@ cd /path/to/r0-skills
 
 - 当前标准三端为 `github`、`origin`、`cggame`；不传 `--remote` 时脚本会同步到所有已配置远端
 - 脚本会先检查当前仓库是否像一个“完整 skill 来源”
+- `--dry-run` 会逐个远端汇总 DNS / transport 预检结果，并输出对应的 `git push` 计划；若任一远端失败，会在汇总后统一阻断
 - 若工作树中存在本地 skill 目录，但尚未纳入 Git tracked scope，预检可能把它视为 partial source
 - 若明确只想同步当前仓库已追踪的范围，可使用：
 
