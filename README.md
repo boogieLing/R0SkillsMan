@@ -86,8 +86,7 @@ cd r0-skills
 如果你希望直接下载一个脚本，然后本地一键完成 clone / update + quick start，直接运行：
 
 ```bash
-curl -L "https://gl.quanyougame.net/lynsan/skills-man/-/raw/main/scripts/install_and_quick_start.sh?inline=false" -o /tmp/install_and_quick_start.sh
-bash /tmp/install_and_quick_start.sh
+curl -L "https://github.com/boogieLing/R0SkillsMan/blob/main/scripts/install_and_quick_start.sh?ref_type=heads&inline=false" -o /tmp/install_and_quick_start.sh && bash /tmp/install_and_quick_start.sh
 ```
 
 默认行为：
