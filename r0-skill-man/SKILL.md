@@ -136,7 +136,7 @@ If none is justified, output exactly:
 
 Write a deterministic log file under:
 - Primary: `/Volumes/R0sORICO/r0_work/r0-skills/r0/skill-man`
-- Fallback (when primary is missing or not writable): `$CODEX_HOME/automations/r0/skill-man`
+- Fallback (when primary is missing or not writable): `${CODEX_HOME:-$HOME/.codex}/automations/r0/skill-man`
 
 Default filename:
 - `skill-maintenance-YYYY-MM-DD.md`

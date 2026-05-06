@@ -181,22 +181,30 @@ ensure_clean_worktree() {
 }
 
 ensure_not_behind_upstream() {
-  local upstream ahead behind counts
-  upstream="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref --symbolic-full-name '@{upstream}' 2>/dev/null || true)"
-  if [[ -z "$upstream" ]]; then
-    echo "[INFO] 当前分支未配置 upstream，跳过 behind 检查。"
+  local branch_name="$1"
+  local branch_ref upstream ahead behind counts
+
+  branch_ref="refs/heads/$branch_name"
+  if ! git -C "$ROOT_DIR" show-ref --verify --quiet "$branch_ref"; then
+    echo "[INFO] 本地不存在分支 $branch_name，跳过 behind 检查。"
     return 0
   fi
 
-  counts="$(git -C "$ROOT_DIR" rev-list --left-right --count "${upstream}...HEAD" | tr '\t' ' ')"
+  upstream="$(git -C "$ROOT_DIR" rev-parse --abbrev-ref --symbolic-full-name "${branch_name}@{upstream}" 2>/dev/null || true)"
+  if [[ -z "$upstream" ]]; then
+    echo "[INFO] 分支 $branch_name 未配置 upstream，跳过 behind 检查。"
+    return 0
+  fi
+
+  counts="$(git -C "$ROOT_DIR" rev-list --left-right --count "${upstream}...${branch_ref}" | tr '\t' ' ')"
   read -r behind ahead <<<"$counts"
   if [[ "$behind" -gt 0 ]]; then
-    echo "当前分支落后 upstream: upstream=$upstream behind=$behind ahead=$ahead" >&2
+    echo "目标分支落后 upstream: branch=$branch_name upstream=$upstream behind=$behind ahead=$ahead" >&2
     echo "请先执行 git pull --ff-only 或完成人工复核后再推送。" >&2
     exit 4
   fi
 
-  echo "[OK] upstream preflight: upstream=$upstream ahead=$ahead behind=$behind"
+  echo "[OK] upstream preflight: branch=$branch_name upstream=$upstream ahead=$ahead behind=$behind"
 }
 
 extract_remote_host() {
@@ -301,7 +309,7 @@ fi
 
 run_scope_preflight
 ensure_clean_worktree
-ensure_not_behind_upstream
+ensure_not_behind_upstream "$BRANCH"
 
 echo "准备同步分支: $BRANCH"
 echo "目标远端: ${TARGET_REMOTES[*]}"
