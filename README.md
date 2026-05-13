@@ -73,7 +73,7 @@ cd r0-skills
 示例：
 
 ```bash
-git clone git@gl.quanyougame.net:lynsan/skills-man.git r0-skills
+git clone https://github.com/boogieLing/R0SkillsMan r0-skills
 cd r0-skills
 ```
 
@@ -179,10 +179,12 @@ python3 scripts/init_skill_namespace.py --name lyn --allow-dirty
 脚本行为：
 
 - 自动探测当前 skill 前缀，例如 `r0`
-- 批量替换仓库内文本中的前缀标识
+- 把当前前缀当成占位符，批量替换仓库内文本中的前缀标识
 - 重命名 `r0-*` 目录、相关脚本文件名和 `shared/r0-core-contract.md`
-- 连 `r0push`、`check_r0push_scope.py` 这类 skill 内部复合命名也会一起替换成新前缀
+- 连 `r0push`、`check_r0push_scope.py`、`printf '\nr0/\n'` 这类 skill 内部复合命名和转义字符串也会一起替换成新前缀
 - 把硬编码的 `/Users/r0/...` 路径收敛为 `$HOME/...`，避免克隆到别的机器后仍残留作者本地路径
+- 实际执行后会扫描残留占位符；若源码区仍存在未替换的 `r0` / `R0` 前缀，会直接失败并列出文件位置
+- 本地执行记录目录（例如根目录下的 `r0/`）不会参与命名重写，避免误改用户自己的历史记录
 
 默认会阻止在 dirty worktree 上直接执行，避免误改你已经有本地变更的仓库；如果你明确知道自己在做什么，再显式加 `--allow-dirty`。
 
@@ -344,8 +346,6 @@ Claude Code 侧通常用 slash command 风格：
 - 让任务范围更清楚，不容易一路扩需求
 - 让阶段、依赖和验证标准更明确
 - 让模型更容易进入计划式、控制器式的执行风格
-
-但边界也要写清：
 
 - 它影响的是模型行为倾向，不是宿主权限
 - 它不能把自己“伪装成内部角色”

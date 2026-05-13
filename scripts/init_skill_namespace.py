@@ -17,6 +17,7 @@ HOME_PREFIXES = (
     "/Users/r0/",
     "/home/r0/",
 )
+MAX_RESIDUALS = 50
 
 
 @dataclass(frozen=True)
@@ -168,10 +169,43 @@ def is_text_file(path: Path) -> bool:
     return True
 
 
+def filtered_dirnames(
+    dirnames: list[str],
+    root_path: Path,
+    repo_root: Path,
+    config: NamespaceConfig | None = None,
+) -> list[str]:
+    skip_dirs = set(SKIP_DIRS)
+    if config is not None and root_path == repo_root:
+        # The bare prefix directory is the local record root, not skill source.
+        # Do not rewrite user-local execution records during namespace setup.
+        skip_dirs.update({config.current_prefix, config.target_prefix})
+    return [name for name in dirnames if name not in skip_dirs]
+
+
 def token_pattern(token: str) -> re.Pattern[str]:
     return re.compile(
         rf"(?<![A-Za-z0-9]){re.escape(token)}(?=[^A-Za-z0-9]|$)"
     )
+
+
+def escaped_token_pattern(token: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"(?<=\\[nrt]){re.escape(token)}(?=[^A-Za-z0-9]|$)"
+    )
+
+
+def compound_prefix_pattern(token: str) -> re.Pattern[str]:
+    return re.compile(
+        rf"(?<![A-Za-z0-9]){re.escape(token)}(?=[a-z])"
+    )
+
+
+def replace_placeholder_token(text: str, current: str, target: str) -> str:
+    updated = token_pattern(current).sub(target, text)
+    updated = escaped_token_pattern(current).sub(target, updated)
+    updated = compound_prefix_pattern(current).sub(target, updated)
+    return updated
 
 
 def apply_text_replacements(text: str, config: NamespaceConfig) -> str:
@@ -183,14 +217,15 @@ def apply_text_replacements(text: str, config: NamespaceConfig) -> str:
     updated = updated.replace(config.current_contract_name, config.target_contract_name)
     updated = updated.replace(config.current_repo_name, config.target_repo_name)
 
-    updated = token_pattern(config.current_prefix.upper()).sub(
-        config.target_prefix.upper(), updated
-    )
-    updated = token_pattern(config.current_prefix).sub(config.target_prefix, updated)
-    updated = re.sub(
-        rf"(?<![A-Za-z0-9]){re.escape(config.current_prefix)}(?=[a-z])",
-        config.target_prefix,
+    updated = replace_placeholder_token(
         updated,
+        config.current_prefix.upper(),
+        config.target_prefix.upper(),
+    )
+    updated = replace_placeholder_token(
+        updated,
+        config.current_prefix,
+        config.target_prefix,
     )
     return updated
 
@@ -203,8 +238,8 @@ def rewrite_text_files(
 ) -> list[Path]:
     changed_files: list[Path] = []
     for root, dirnames, filenames in os.walk(repo_root):
-        dirnames[:] = [name for name in dirnames if name not in SKIP_DIRS]
         root_path = Path(root)
+        dirnames[:] = filtered_dirnames(dirnames, root_path, repo_root, config)
         for filename in filenames:
             file_path = root_path / filename
             if file_path.is_symlink() or not file_path.is_file():
@@ -237,8 +272,8 @@ def rename_paths(
 ) -> list[tuple[Path, Path]]:
     candidates: list[Path] = []
     for root, dirnames, filenames in os.walk(repo_root):
-        dirnames[:] = [name for name in dirnames if name not in SKIP_DIRS]
         root_path = Path(root)
+        dirnames[:] = filtered_dirnames(dirnames, root_path, repo_root, config)
         for dirname in dirnames:
             candidates.append(root_path / dirname)
         for filename in filenames:
@@ -268,12 +303,52 @@ def rename_paths(
     return renamed_paths
 
 
+def residual_patterns(config: NamespaceConfig) -> list[tuple[str, re.Pattern[str]]]:
+    return [
+        ("upper-token", token_pattern(config.current_prefix.upper())),
+        ("upper-escaped-token", escaped_token_pattern(config.current_prefix.upper())),
+        ("upper-compound-prefix", compound_prefix_pattern(config.current_prefix.upper())),
+        ("lower-token", token_pattern(config.current_prefix)),
+        ("lower-escaped-token", escaped_token_pattern(config.current_prefix)),
+        ("lower-compound-prefix", compound_prefix_pattern(config.current_prefix)),
+    ]
+
+
+def find_residual_placeholders(repo_root: Path, config: NamespaceConfig) -> list[str]:
+    patterns = residual_patterns(config)
+    findings: list[str] = []
+    for root, dirnames, filenames in os.walk(repo_root):
+        root_path = Path(root)
+        dirnames[:] = filtered_dirnames(dirnames, root_path, repo_root, config)
+        for filename in filenames:
+            file_path = root_path / filename
+            if file_path.is_symlink() or not file_path.is_file():
+                continue
+            if not is_text_file(file_path):
+                continue
+            try:
+                lines = file_path.read_text(encoding="utf-8").splitlines()
+            except UnicodeDecodeError:
+                continue
+            for line_no, line in enumerate(lines, 1):
+                for label, pattern in patterns:
+                    if not pattern.search(line):
+                        continue
+                    rel = file_path.relative_to(repo_root)
+                    findings.append(f"{rel}:{line_no}:{label}: {line.strip()}")
+                    if len(findings) >= MAX_RESIDUALS:
+                        return findings
+                    break
+    return findings
+
+
 def print_summary(
     config: NamespaceConfig,
     *,
     dry_run: bool,
     changed_files: list[Path],
     renamed_paths: list[tuple[Path, Path]],
+    residuals: list[str],
 ) -> None:
     mode = "dry-run" if dry_run else "applied"
     print(f"mode={mode}")
@@ -286,6 +361,12 @@ def print_summary(
     print(f"paths_renamed={len(renamed_paths)}")
     for old_path, new_path in renamed_paths:
         print(f"  rename: {old_path} -> {new_path}")
+    if dry_run:
+        print("residual_check=skipped_dry_run")
+    else:
+        print(f"residual_placeholders={len(residuals)}")
+        for item in residuals:
+            print(f"  residual: {item}")
 
 
 def main() -> int:
@@ -303,12 +384,21 @@ def main() -> int:
     ensure_safe_worktree(repo_root, args.allow_dirty)
     changed_files = rewrite_text_files(repo_root, config, dry_run=args.dry_run)
     renamed_paths = rename_paths(repo_root, config, dry_run=args.dry_run)
+    residuals = [] if args.dry_run else find_residual_placeholders(repo_root, config)
     print_summary(
         config,
         dry_run=args.dry_run,
         changed_files=changed_files,
         renamed_paths=renamed_paths,
+        residuals=residuals,
     )
+    if residuals:
+        print(
+            "error: namespace initialization left residual placeholder tokens; "
+            "fix the listed files or add an explicit rule before continuing",
+            file=sys.stderr,
+        )
+        return 2
     return 0
 
 
