@@ -8,7 +8,7 @@
   - 文档产物、本地记录、坏例子、研究笔记目录统一使用 `r0/xxx`
 - `<skill-key>` 固定为 skill 名去掉前缀 `r0-` 后的剩余部分，例如：
   - `r0-request -> ./r0/request/`
-  - `r0-read -> ./r0/read/`
+  - `r0-roadmap -> ./r0/roadmap/`
   - `r0-skill-man -> ./r0/skill-man/`
 - 建议子目录：
   - `artifacts/`：脚本输出、临时分析结果

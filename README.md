@@ -38,8 +38,7 @@
 
 | Skill | 作用 |
 | --- | --- |
-| `r0-roadmap` | 阅读目录 / 仓库架构，输出模块职责、功能流和 roadmap 文档。 |
-| `r0-read` | 只读型代码阅读 skill，用结构化方式理解入口、控制路径和数据流。 |
+| `r0-roadmap` | 融合原 `r0-read` 的系统化读代码流程，使用 AST、依赖图、并查集、SCC、DAG 分层和中心性分析入口、模块、依赖、职责与功能流，并输出 roadmap 文档。 |
 | `r0-question` | 中文知识问答与问题澄清 skill，适合梳理概念、约束、疑点与取舍。 |
 
 ### 运营与专项场景
@@ -47,10 +46,7 @@
 | Skill | 作用 |
 | --- | --- |
 | `r0-skill-man` | skill 生态治理与日常维护。 |
-| `r0-diagram-guard` | 针对 writing 项目中的流程图资产做门禁、修复与报告。 |
 | `r0-tech-graph` | 面向技术架构图的浅色 HTML 绘图 skill，最终产物对齐 `architecture-diagram-generator` 的自包含 HTML，同时融合 SVG 模板、Flat UI Colors US 色系、布局校验和可选 PNG 导出能力。 |
-| `r0-ios-agents` | iOS 任务总编排器，适合多 skill 协同、并行 lane 和阶段化落地。 |
-| `r0-write-lark` | 本地文章目录同步到 Lark/飞书云文档，当前稳定能力偏同步前检查与计划输出。 |
 | `r0-writer` | 面向公众号长文与项目化写作的文章交付 skill。 |
 
 ### 仓库入口
