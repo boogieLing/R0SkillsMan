@@ -1,6 +1,7 @@
 .DS_Store
+__pycache__/
+*.pyc
 skills-man/
 r0/
-r0-*/
 skill-maintenance-*.md
 基础Skills_2026-03-10.zip

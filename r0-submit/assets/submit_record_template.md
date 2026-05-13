@@ -43,6 +43,7 @@
 
 ## 7. Git 状态核查
 - 提交前 `git status --short --branch` 摘要：
+- 提交前远端分支快照：
 - 提交后 `git status --short --branch` 摘要：
 - 提交前 `check_r0push_scope.py` 结果：
 <!-- r0push-scope-check:start -->

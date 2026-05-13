@@ -17,8 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Set, Tuple
 
-IGNORE_NAMES = {".DS_Store", "Thumbs.db"}
-AUXILIARY_DIRS = ("shared", "scripts")
+IGNORE_NAMES = {".DS_Store", "Thumbs.db", "__pycache__"}
+AUXILIARY_PATHS = ("shared", "scripts", ".gitignore")
+
+
+def should_ignore(path: Path) -> bool:
+    return path.name in IGNORE_NAMES or path.suffix == ".pyc"
 
 
 @dataclass
@@ -77,8 +81,10 @@ def discover_skills(roots: List[Path], prefix: str) -> Dict[str, List[Path]]:
 
 def latest_tree_mtime(path: Path) -> float:
     latest = path.stat().st_mtime
+    if path.is_file():
+        return latest
     for item in path.rglob("*"):
-        if item.name in IGNORE_NAMES:
+        if should_ignore(item):
             continue
         try:
             latest = max(latest, item.stat().st_mtime)
@@ -111,7 +117,7 @@ def sync_one_skill(source: Path, target: Path, dry_run: bool, prune: bool) -> Sy
     source_items: Set[Path] = set()
 
     for src_path in source.rglob("*"):
-        if src_path.name in IGNORE_NAMES:
+        if should_ignore(src_path):
             continue
         rel = src_path.relative_to(source)
         source_items.add(rel)
@@ -135,7 +141,7 @@ def sync_one_skill(source: Path, target: Path, dry_run: bool, prune: bool) -> Sy
 
     if not prune and target.exists():
         for dst_path in target.rglob("*"):
-            if dst_path.name in IGNORE_NAMES:
+            if should_ignore(dst_path):
                 continue
             rel = dst_path.relative_to(target)
             if rel in source_items:
@@ -148,7 +154,7 @@ def sync_one_skill(source: Path, target: Path, dry_run: bool, prune: bool) -> Sy
     if prune and target.exists():
         # Remove files/dirs not present in source.
         target_items = sorted(
-            (p.relative_to(target) for p in target.rglob("*") if p.name not in IGNORE_NAMES),
+            (p.relative_to(target) for p in target.rglob("*") if not should_ignore(p)),
             key=lambda p: len(p.parts),
             reverse=True,
         )
@@ -177,21 +183,32 @@ def format_stats(stats: SyncStats) -> str:
     )
 
 
-def sync_auxiliary_dir(dir_name: str, roots: List[Path], dry_run: bool, prune: bool) -> SyncStats:
-    existing = [root / dir_name for root in roots if (root / dir_name).exists()]
+def sync_auxiliary_path(path_name: str, roots: List[Path], dry_run: bool, prune: bool) -> SyncStats:
+    existing = [root / path_name for root in roots if (root / path_name).exists()]
     stats = SyncStats()
     if not existing:
         return stats
 
     source = max(existing, key=latest_tree_mtime)
-    print(f"\n[{dir_name}] source={source}")
+    print(f"\n[{path_name}] source={source}")
     seen_targets: Set[Path] = set()
     for target in existing:
         target = target.resolve()
         if target == source or target in seen_targets:
             continue
         seen_targets.add(target)
-        delta = sync_one_skill(source, target, dry_run=dry_run, prune=prune)
+        if source.is_file():
+            delta = SyncStats()
+            if should_copy(source, target):
+                if target.exists():
+                    delta.updated_files += 1
+                else:
+                    delta.created_files += 1
+                if not dry_run:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, target)
+        else:
+            delta = sync_one_skill(source, target, dry_run=dry_run, prune=prune)
         stats.merge(delta)
         if any(
             [
@@ -305,8 +322,8 @@ def main() -> int:
 
         overall.merge(per_skill)
 
-    for aux_dir in AUXILIARY_DIRS:
-        overall.merge(sync_auxiliary_dir(aux_dir, roots, dry_run=args.dry_run, prune=args.prune))
+    for aux_path in AUXILIARY_PATHS:
+        overall.merge(sync_auxiliary_path(aux_path, roots, dry_run=args.dry_run, prune=args.prune))
 
     print("\nSummary:")
     print(format_stats(overall))

@@ -77,14 +77,14 @@ urlencode() {
   printf '%s' "$out"
 }
 
-get_origin_web_url() {
-  local origin_url host path
-  origin_url="$(git remote get-url origin 2>/dev/null || true)"
-  if [[ -z "$origin_url" ]]; then
+get_remote_web_url() {
+  local remote="${1:-origin}" remote_url host path
+  remote_url="$(git remote get-url "$remote" 2>/dev/null || true)"
+  if [[ -z "$remote_url" ]]; then
     return 1
   fi
 
-  if [[ "$origin_url" =~ ^git@([^:]+):(.+)$ ]]; then
+  if [[ "$remote_url" =~ ^git@([^:]+):(.+)$ ]]; then
     host="${BASH_REMATCH[1]}"
     path="${BASH_REMATCH[2]}"
     path="${path%.git}"
@@ -92,7 +92,7 @@ get_origin_web_url() {
     return 0
   fi
 
-  if [[ "$origin_url" =~ ^ssh://git@([^/]+)/(.+)$ ]]; then
+  if [[ "$remote_url" =~ ^ssh://git@([^/]+)/(.+)$ ]]; then
     host="${BASH_REMATCH[1]}"
     path="${BASH_REMATCH[2]}"
     path="${path%.git}"
@@ -100,29 +100,70 @@ get_origin_web_url() {
     return 0
   fi
 
-  if [[ "$origin_url" =~ ^https?:// ]]; then
-    printf '%s' "${origin_url%.git}"
+  if [[ "$remote_url" =~ ^https?:// ]]; then
+    printf '%s' "${remote_url%.git}"
     return 0
   fi
 
   return 1
 }
 
-get_default_branch() {
-  local target_branch
-  target_branch="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' || true)"
-  if [[ -n "$target_branch" ]]; then
-    printf '%s' "$target_branch"
+select_push_remote() {
+  if git remote | grep -qx 'upstream'; then
+    printf 'upstream'
     return 0
   fi
 
-  if git show-ref --verify --quiet refs/heads/main; then
+  if git remote | grep -qx 'origin'; then
+    printf 'origin'
+    return 0
+  fi
+
+  git remote | sed -n '1p'
+}
+
+list_remote_branches() {
+  local remote="$1" output
+  if ! output="$(git ls-remote --heads "$remote" 2>/dev/null)"; then
+    echo -e "${RED}Unable to inspect remote branches for '$remote'.${NC}" >&2
+    return 1
+  fi
+  printf '%s\n' "$output" | sed 's|.*refs/heads/||' | sort -u
+}
+
+remote_has_branch() {
+  local branch="$1"
+  grep -qx "$branch"
+}
+
+select_target_branch() {
+  local remote="$1" branches head_branch first_branch
+  branches="$(list_remote_branches "$remote")"
+
+  if printf '%s\n' "$branches" | remote_has_branch test; then
+    printf 'test'
+    return 0
+  fi
+
+  if printf '%s\n' "$branches" | remote_has_branch main; then
     printf 'main'
     return 0
   fi
 
-  if git show-ref --verify --quiet refs/heads/master; then
+  if printf '%s\n' "$branches" | remote_has_branch master; then
     printf 'master'
+    return 0
+  fi
+
+  head_branch="$(git ls-remote --symref "$remote" HEAD 2>/dev/null | awk '/^ref:/ {sub("refs/heads/", "", $2); print $2; exit}')"
+  if [[ -n "$head_branch" ]]; then
+    printf '%s' "$head_branch"
+    return 0
+  fi
+
+  first_branch="$(printf '%s\n' "$branches" | sed -n '1p')"
+  if [[ -n "$first_branch" ]]; then
+    printf '%s' "$first_branch"
     return 0
   fi
 
@@ -151,22 +192,137 @@ build_pr_or_mr_url() {
   return 1
 }
 
-print_links() {
-  local repo_url pr_url target_branch branch="$1"
+github_repo_slug() {
+  local repo_url="$1"
+  printf '%s' "$repo_url" | sed -E 's|https?://[^/]+/||'
+}
 
-  repo_url="$(get_origin_web_url || true)"
+gitlab_project_path() {
+  local repo_url="$1"
+  printf '%s' "$repo_url" | sed -E 's|https?://[^/]+/||'
+}
+
+json_field() {
+  local field="$1"
+  python3 -c '
+import json
+import sys
+
+field = sys.argv[1]
+try:
+    data = json.load(sys.stdin)
+except json.JSONDecodeError:
+    raise SystemExit(1)
+value = data.get(field)
+if value:
+    print(value)
+' "$field"
+}
+
+gitlab_token() {
+  printf '%s' "${GITLAB_TOKEN:-${GL_TOKEN:-${PRIVATE_TOKEN:-}}}"
+}
+
+create_gitlab_mr_with_api() {
+  local repo_url="$1"
+  local branch="$2"
+  local target_branch="$3"
+  local title="$4"
+  local host project token api_url response web_url
+
+  command -v curl >/dev/null 2>&1 || return 1
+  command -v python3 >/dev/null 2>&1 || return 1
+
+  token="$(gitlab_token)"
+  [[ -n "$token" ]] || return 1
+
+  host="$(printf '%s' "$repo_url" | sed -E 's|https?://([^/]+)/.*|\1|')"
+  project="$(urlencode "$(gitlab_project_path "$repo_url")")"
+  api_url="https://$host/api/v4/projects/$project/merge_requests"
+
+  response="$(
+    curl --fail --silent --show-error \
+      --request POST \
+      --header "PRIVATE-TOKEN: $token" \
+      --data-urlencode "source_branch=$branch" \
+      --data-urlencode "target_branch=$target_branch" \
+      --data-urlencode "title=$title" \
+      --data-urlencode "remove_source_branch=false" \
+      "$api_url" 2>/dev/null
+  )" || return 1
+
+  web_url="$(printf '%s' "$response" | json_field web_url || true)"
+  [[ -n "$web_url" ]] || return 1
+  printf '%s' "$web_url"
+}
+
+create_pr_or_mr() {
+  local remote="$1"
+  local branch="$2"
+  local target_branch="$3"
+  local title="$4"
+  local repo_url pr_url host repo_slug created_url
+
+  repo_url="$(get_remote_web_url "$remote" || true)"
   if [[ -z "$repo_url" ]]; then
+    echo -e "${YELLOW}PR/MR URL:${NC} unable to derive web URL for remote '$remote'"
     return 0
   fi
 
-  target_branch="$(get_default_branch)"
-
+  host="$(printf '%s' "$repo_url" | sed -E 's|https?://([^/]+)/.*|\1|')"
   echo -e "${BLUE}Repo URL:${NC} $repo_url"
+
+  if [[ "$branch" == "$target_branch" ]]; then
+    echo -e "${YELLOW}PR/MR skipped:${NC} source branch equals target branch ($branch)"
+    return 0
+  fi
+
+  if [[ "$host" == "github.com" || "$host" == *.github.com ]]; then
+    if command -v gh >/dev/null 2>&1; then
+      repo_slug="$(github_repo_slug "$repo_url")"
+      if created_url="$(gh pr create --repo "$repo_slug" --base "$target_branch" --head "$branch" --title "$title" --body "Created by $COMMAND_NAME after pushing $branch to $remote." 2>/dev/null)"; then
+        echo -e "${BLUE}PR URL:${NC} $created_url"
+        return 0
+      fi
+      echo -e "${YELLOW}PR create fallback:${NC} gh pr create failed; printing create URL."
+    fi
+  fi
+
+  if [[ "$host" == "gitlab.com" || "$host" == *.gitlab.com ]]; then
+    if command -v glab >/dev/null 2>&1; then
+      if created_url="$(glab mr create --source-branch "$branch" --target-branch "$target_branch" --title "$title" --description "Created by $COMMAND_NAME after pushing $branch to $remote." 2>/dev/null)"; then
+        echo -e "${BLUE}MR URL:${NC} $created_url"
+        return 0
+      fi
+      echo -e "${YELLOW}MR create fallback:${NC} glab mr create failed; trying API or printing create URL."
+    fi
+
+    if created_url="$(create_gitlab_mr_with_api "$repo_url" "$branch" "$target_branch" "$title")"; then
+      echo -e "${BLUE}MR URL:${NC} $created_url"
+      return 0
+    fi
+    echo -e "${YELLOW}MR create fallback:${NC} GitLab token unavailable or API create failed; printing create URL."
+  fi
 
   pr_url="$(build_pr_or_mr_url "$repo_url" "$branch" "$target_branch" || true)"
   if [[ -n "$pr_url" ]]; then
     echo -e "${BLUE}PR/MR URL:${NC} $pr_url"
   fi
+}
+
+submit_branch_name() {
+  local branch="$1"
+  local target_branch="$2"
+  local type="$3"
+  local stamp
+
+  if [[ "$branch" != "$target_branch" ]]; then
+    printf '%s' "$branch"
+    return 0
+  fi
+
+  stamp="$(date '+%Y%m%d%H%M%S')"
+  printf 'r0submit/%s-%s' "$(printf '%s' "$type" | tr '[:upper:]' '[:lower:]')" "$stamp"
 }
 
 if [[ $# -eq 0 ]]; then
@@ -206,15 +362,32 @@ if [[ -z "$BRANCH" ]]; then
 fi
 
 MESSAGE="[$TYPE]: $2"
+PUSH_REMOTE="$(select_push_remote)"
+if [[ -z "$PUSH_REMOTE" ]]; then
+  echo -e "${RED}No Git remote configured.${NC}"
+  exit 1
+fi
+REMOTE_BRANCHES="$(list_remote_branches "$PUSH_REMOTE")"
+TARGET_BRANCH="$(select_target_branch "$PUSH_REMOTE")"
+SOURCE_BRANCH="$(submit_branch_name "$BRANCH" "$TARGET_BRANCH" "$TYPE")"
 
 echo -e "${GREEN}========================================${NC}"
 echo -e "${YELLOW}Current branch:${NC} $BRANCH"
+echo -e "${YELLOW}Push remote:${NC} $PUSH_REMOTE"
+echo -e "${YELLOW}Remote branches:${NC}"
+if [[ -n "$REMOTE_BRANCHES" ]]; then
+  printf '%s\n' "$REMOTE_BRANCHES" | sed 's/^/  - /'
+else
+  echo "  - <none>"
+fi
+echo -e "${YELLOW}PR target branch:${NC} $TARGET_BRANCH"
+echo -e "${YELLOW}PR source branch:${NC} $SOURCE_BRANCH"
 echo -e "${YELLOW}Type:${NC} $TYPE"
 echo -e "${YELLOW}Message:${NC} $MESSAGE"
 echo -e "${GREEN}========================================${NC}"
 
-git add . && git commit -m "$MESSAGE" && git push origin "$BRANCH"
+git add . && git commit -m "$MESSAGE" && git push "$PUSH_REMOTE" "HEAD:refs/heads/$SOURCE_BRANCH"
 
 echo -e "${GREEN}Push succeeded.${NC}"
-echo "$(date '+%Y-%m-%d %H:%M:%S') | $TYPE | $MESSAGE | branch:$BRANCH" >> "$LOGFILE"
-print_links "$BRANCH"
+echo "$(date '+%Y-%m-%d %H:%M:%S') | $TYPE | $MESSAGE | remote:$PUSH_REMOTE | local_branch:$BRANCH | source:$SOURCE_BRANCH | target:$TARGET_BRANCH" >> "$LOGFILE"
+create_pr_or_mr "$PUSH_REMOTE" "$SOURCE_BRANCH" "$TARGET_BRANCH" "$MESSAGE"

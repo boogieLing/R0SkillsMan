@@ -18,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
+from shared_contract_checks import validate_skill_contract
+
 GEN_OPENAI_YAML = Path(
     "/Users/r0/.codex/skills/.system/skill-creator/scripts/generate_openai_yaml.py"
 )
@@ -144,39 +146,6 @@ def openai_yaml_issues(openai_yaml: Path, skill_name: str) -> List[str]:
     return issues
 
 
-def legacy_path_issues(text: str) -> List[str]:
-    issues: List[str] = []
-    # Match only actual legacy local-record paths like ./r0-review/, not ../r0-restrict/ references.
-    if re.search(r"(?<!\.)\./r0-[a-z0-9-]+/", text):
-        issues.append("仍包含旧的 ./r0-xxx/ 本地记录路径")
-    if re.search(r"\^r0-[a-z0-9-]+/\$", text):
-        issues.append("仍包含旧的按 skill 分散维护的 .gitignore 规则")
-    normalized = text.replace("`", "")
-    has_r0_restore = (
-        "git restore --staged r0/" in normalized
-        or "git restore --staged -- r0/" in normalized
-    )
-    has_legacy_restore = "'r0-*'" in normalized or '"r0-*"' in normalized or " r0-*" in normalized
-    if not has_r0_restore:
-        issues.append("未声明统一的 git restore --staged r0/ 规则")
-    if not has_legacy_restore:
-        issues.append("未覆盖历史目录 r0-* 的误暂存清理规则")
-    if "shared/r0-core-contract.md" not in text and "../shared/r0-core-contract.md" not in text:
-        issues.append("缺少共享契约 shared/r0-core-contract.md 引用")
-    shared_result_tokens = (
-        "共享结果契约",
-        "shared result contract",
-        "shared summary-card/result contract",
-        "summary-card/result contract",
-    )
-    card_tokens = ("首屏摘要卡片", "摘要卡片", "summary-card", "summary card")
-    if not any(token in text for token in shared_result_tokens) or not any(
-        token in text for token in card_tokens
-    ):
-        issues.append("缺少共享结果契约 + 摘要卡片约束提示")
-    return issues
-
-
 def process_skill(skill_dir: Path, dry_run: bool) -> SkillResult:
     skill_md = skill_dir / "SKILL.md"
     if not skill_md.exists():
@@ -198,8 +167,7 @@ def process_skill(skill_dir: Path, dry_run: bool) -> SkillResult:
             f"frontmatter.name 与目录名不一致: {fm_name} != {skill_dir.name}",
         )
 
-    text = skill_md.read_text(encoding="utf-8")
-    path_issues = legacy_path_issues(text)
+    path_issues = validate_skill_contract(skill_dir)
     if path_issues:
         return SkillResult(skill_dir, "flagged", "；".join(path_issues))
 

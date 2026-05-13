@@ -67,13 +67,23 @@ $HOME/.local/bin/r0push fix "your commit message"
 
 If `scripts/quick_start.sh` has already completed, this absolute path will be fixed to the synced skill tool. After namespace initialization, both the binary name and absolute path suffix will be renamed together with the chosen prefix.
 
-6. Block the flow when:
+6. The bundled push tool MUST handle remote PR routing in script logic, not prompt-only instructions:
+   - inspect remote branches with `git ls-remote --heads <remote>` so local remote refs are not updated
+   - prefer push remote `upstream` when that remote exists
+   - otherwise prefer `origin`, then the first configured remote
+   - select PR target branch by remote branch priority: `test -> main -> master`
+   - if the current local branch equals the selected target branch, push `HEAD` to a generated `r0submit/<type>-<timestamp>` source branch and create the PR/MR from that branch
+   - after push, create a GitHub PR with `gh pr create` when available; otherwise print the corresponding PR/MR creation URL
+   - for GitLab remotes, create the MR with `glab` when available, then with the GitLab API when `GITLAB_TOKEN`, `GL_TOKEN`, or `PRIVATE_TOKEN` is set; otherwise print the MR creation URL
+   - always print the detected remote branch list, selected push remote, selected target branch, and resulting PR/MR link or skip reason
+7. Block the flow when:
    - there is no staged change
    - unrelated dirty files exist outside `r0/`, `r0-*`, and `.gitignore`
    - commit intent is unclear
-7. If the submit proceeds, record:
+8. If the submit proceeds, record:
    - commit grouping decision
    - pre/post git status summary
+   - remote branch snapshot and target branch decision
    - scope-check output
    - local artifact paths
 
@@ -83,7 +93,9 @@ GIT HYGIENE
 
 ================================================================================
 
-- Ensure `.gitignore` contains both `r0/` and `r0-*/`.
+- Ensure `.gitignore` contains `r0/`.
+- In normal target projects, keep `r0-*/` as a compatibility ignore rule for legacy local record directories.
+- In the `r0-*` skill source repo itself, do not add a bare root `r0-*/` ignore rule because it hides new skill source files.
 - If local record files are staged, remove them from staging:
 
 ```bash

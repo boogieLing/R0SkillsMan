@@ -11,7 +11,8 @@ description: "Deterministic daily maintenance for local skill ecosystems: clean 
 - Result output MUST follow the shared result contract / 共享结果契约: start with the unified `首屏摘要卡片`, then provide structured sections and `自动进化`.
 - The local record directory for this skill is `./r0/skill-man/`.
 - Every maintenance cycle MUST leave its execution record, bad cases, and research notes under `./r0/skill-man/`.
-- `.gitignore` main rule MUST be `r0/`, and the repo SHOULD keep compatibility rule `r0-*/`.
+- `.gitignore` main rule MUST be `r0/`.
+- The compatibility rule `r0-*/` applies to normal target projects that do not track `r0-*` skill source directories; do not require a bare `r0-*/` rule in this source repo itself.
 - If local records were staged by mistake, run `git restore --staged -- r0/ 'r0-*'`.
 
 Execute a conservative, deterministic maintenance cycle for local skills.
@@ -214,6 +215,9 @@ Sync policy:
 
 ## Auto Evolution Commands
 
+Use this command to assert the shared contract before running mutation-capable steps:
+- Shared contract check: `python3 r0-skill-man/scripts/check_r0_shared_contract.py`
+
 Use these commands to evolve local `r0-` skills conservatively:
 - Dry run: `python3 r0-skill-man/scripts/auto_evolve_r0_skills.py --dry-run`
 - Apply: `python3 r0-skill-man/scripts/auto_evolve_r0_skills.py`
@@ -222,4 +226,5 @@ Evolution policy:
 - Prioritize low-risk deterministic repairs.
 - Keep high-risk content rewrites out of automatic mode.
 - Treat flagged skills as manual-review items.
+- Recommended order: `check_r0_shared_contract.py -> auto_evolve_r0_skills.py --dry-run -> sync_r0_skills.py --dry-run -> sync_r0_skills.py -> check_skill_links.sh -> sync_all_remotes.sh --branch <branch> --dry-run -> sync_all_remotes.sh --branch <branch>`.
 - If the command path in this document diverges from the bundled script location, patch the document first and record the drift as a bad case.

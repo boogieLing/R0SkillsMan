@@ -23,6 +23,7 @@ ALLOWED_RECORD_KEYS = {
     "- `.gitignore` 是否包含 `r0/`：": "",
     "- `.gitignore` 是否包含 `r0-*/`：": "",
     "- 提交前 `git status --short --branch` 摘要：": "",
+    "- 提交前远端分支快照：": "",
 }
 START = "<!-- git-baseline:start -->"
 END = "<!-- git-baseline:end -->"
@@ -73,6 +74,7 @@ def render_git_baseline(repo_root: Path) -> str:
     cached = git(repo_root, "diff", "--cached", "--name-only")
     stat = git(repo_root, "diff", "--stat")
     cached_stat = git(repo_root, "diff", "--cached", "--stat")
+    remote_snapshot = render_remote_branch_snapshot(repo_root)
     parts = [
         "## Git Baseline Snapshot",
         START,
@@ -91,6 +93,9 @@ def render_git_baseline(repo_root: Path) -> str:
         "",
         "[git diff --cached --stat]",
         cached_stat or "<empty>",
+        "",
+        "[remote branch snapshot]",
+        remote_snapshot,
         "```",
         END,
     ]
@@ -107,21 +112,78 @@ def upsert_git_baseline(text: str, block: str) -> str:
     return text.rstrip() + "\n\n" + block + "\n"
 
 
-def ensure_gitignore(repo_root: Path) -> tuple[bool, bool]:
+def remote_names(repo_root: Path) -> list[str]:
+    completed = run(["git", "remote"], repo_root)
+    if completed.returncode != 0:
+        return []
+    return [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+
+
+def select_submit_remote(remotes: list[str]) -> str:
+    if "upstream" in remotes:
+        return "upstream"
+    if "origin" in remotes:
+        return "origin"
+    return remotes[0] if remotes else ""
+
+
+def list_remote_branches(repo_root: Path, remote: str) -> list[str]:
+    completed = run(["git", "ls-remote", "--heads", remote], repo_root)
+    if completed.returncode != 0:
+        return [f"<unable to read {remote}: {(completed.stderr or completed.stdout).strip()}>"]
+    branches: list[str] = []
+    for line in completed.stdout.splitlines():
+        if "refs/heads/" not in line:
+            continue
+        branches.append(line.rsplit("refs/heads/", 1)[1])
+    return sorted(set(branches))
+
+
+def select_target_branch(branches: list[str]) -> str:
+    branch_set = set(branches)
+    for candidate in ("test", "main", "master"):
+        if candidate in branch_set:
+            return candidate
+    return branches[0] if branches else "main"
+
+
+def render_remote_branch_snapshot(repo_root: Path) -> str:
+    remotes = remote_names(repo_root)
+    submit_remote = select_submit_remote(remotes)
+    if not submit_remote:
+        return "remotes=<none>"
+
+    lines = [f"submit_remote={submit_remote}"]
+    for remote in remotes:
+        branches = list_remote_branches(repo_root, remote)
+        target = select_target_branch(branches)
+        marker = " (selected)" if remote == submit_remote else ""
+        lines.append(f"{remote}{marker}: target={target}; branches={', '.join(branches) if branches else '<none>'}")
+    return "\n".join(lines)
+
+
+def is_source_repo(repo_root: Path) -> bool:
+    return any(path.is_dir() and (path / "SKILL.md").is_file() for path in repo_root.glob("r0-*"))
+
+
+def ensure_gitignore(repo_root: Path) -> tuple[bool, str]:
     path = repo_root / ".gitignore"
     if not path.exists():
         path.write_text("", encoding="utf-8")
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
     changed = False
-    for rule in ("r0/", "r0-*/"):
-        if rule not in lines:
-            lines.append(rule)
-            changed = True
+    if "r0/" not in lines:
+        lines.append("r0/")
+        changed = True
+    if not is_source_repo(repo_root) and "r0-*/" not in lines:
+        lines.append("r0-*/")
+        changed = True
     if changed:
         path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
     final = path.read_text(encoding="utf-8").splitlines()
-    return ("r0/" in final, "r0-*/" in final)
+    legacy_state = "not-required-source-repo" if is_source_repo(repo_root) else ("yes" if "r0-*/" in final else "no")
+    return ("r0/" in final, legacy_state)
 
 
 def main() -> int:
@@ -157,8 +219,9 @@ def main() -> int:
     text = replace_line(text, "- 记录文件路径：", rel_to_repo(record_file, repo_root))
     text = replace_line(text, "- dry-run manifest 路径：", "")
     text = replace_line(text, "- `.gitignore` 是否包含 `r0/`：", "yes" if r0_ok else "no")
-    text = replace_line(text, "- `.gitignore` 是否包含 `r0-*/`：", "yes" if legacy_ok else "no")
+    text = replace_line(text, "- `.gitignore` 是否包含 `r0-*/`：", legacy_ok)
     text = replace_line(text, "- 提交前 `git status --short --branch` 摘要：", "见下方 `Git Baseline Snapshot`")
+    text = replace_line(text, "- 提交前远端分支快照：", "见下方 `Git Baseline Snapshot`")
     text = upsert_git_baseline(text, render_git_baseline(repo_root))
     record_file.write_text(text, encoding="utf-8")
 

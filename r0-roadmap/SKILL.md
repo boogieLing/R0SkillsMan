@@ -19,7 +19,7 @@ description: Read and understand a target project or directory, analyze architec
 - 结果输出必须遵循 shared result contract / 共享结果契约：先给统一的 `首屏摘要卡片`，再给结构化正文与 `自动进化`。
 - 本技能在目标项目中的本地记录目录固定为 `./r0/roadmap/`。
 - 每次执行必须把 roadmap 文档写入目标目录下的 `./r0/roadmap/`。
-- `r0-roadmap` 不再写入 `./r0/read/`；阅读摘要必须并入 roadmap 文档。
+- `r0-roadmap` 不再写入旧 read 记录目录；阅读摘要必须并入 roadmap 文档。
 - 若目标项目存在全局 `AGENTS.md`，必须尝试把 roadmap 摘要同步进 `AGENTS.md` 的受管区块。
 - `.gitignore` 统一规则为 `r0/` 与兼容规则 `r0-*/`；若本地记录被误加入暂存区，执行 `git restore --staged -- r0/ 'r0-*'`。
 
