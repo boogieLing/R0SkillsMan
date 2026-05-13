@@ -56,7 +56,7 @@
 ### 仓库入口
 
 - `shared/r0-core-contract.md` 是当前 skill 体系的共享契约入口
-- `scripts/install_and_quick_start.sh` 负责“拉取远端 + quick start”一键配置安装
+- `scripts/install_and_quick_start.sh` 是 `skills_man` 命令入口，负责自安装、安装、卸载和 quick start 编排
 - `scripts/quick_start.sh` 负责命名初始化、skill 同步、链接校验与 `r0push` 固定
 - `scripts/uninstall.sh` 负责清理误安装留下的 skill 软链、固定 push 工具和仓库目录
 - `scripts/init_skill_namespace.py` 负责把仓库从 `r0-*` 改成自定义前缀
@@ -83,7 +83,7 @@ cd r0-skills
 
 ### 2. 一键配置安装（推荐）
 
-如果你希望直接下载一个脚本，然后本地一键完成 clone / update + quick start，直接运行：
+如果你希望直接下载并执行安装器，让它先注册为本地命令，再自动完成安装，直接运行：
 
 ```bash
 curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
@@ -91,20 +91,24 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 
 默认行为：
 
-- 默认从远端 `github` 拉取
+- 先安装命令工具到 `~/.local/bin/skills_man`
+- 默认从远端 `origin` 拉取
 - 默认分支 `main`
 - 默认安装到 `~/.local/share/r0-skills`
-- 本地没有仓库时先 clone；已有仓库时做 fetch + pull --ff-only
+- 本地没有仓库时先 clone
+- 安装目录已有 skill 仓库时会询问是否覆盖；默认跳过
 - 拉取成功后自动继续执行仓库内的 `scripts/quick_start.sh`
 
 常用示例：
 
 ```bash
-bash /tmp/install_and_quick_start.sh
-bash /tmp/install_and_quick_start.sh --name lyn
-bash /tmp/install_and_quick_start.sh --remote origin --install-dir ~/work/r0-skills --name lyn
-bash /tmp/install_and_quick_start.sh --remote cggame --branch main --allow-dirty
-bash /tmp/install_and_quick_start.sh --dry-run
+curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
+curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s -- --name lyn
+curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s -- --remote cggame --branch main --allow-dirty
+skills_man install --overwrite
+skills_man install --update-existing
+skills_man uninstall
+./scripts/install_and_quick_start.sh --dry-run
 ```
 
 当前仓库已配置的三个远端是：
@@ -115,9 +119,10 @@ bash /tmp/install_and_quick_start.sh --dry-run
 
 推荐顺序：
 
-1. 首次安装时直接下载并运行 `install_and_quick_start.sh`
-2. 需要切换自定义前缀时，加 `--name <your-prefix>`
-3. 完成后优先使用 `$HOME/.local/bin/<prefix>push` 作为固定提交入口
+1. 首次安装时直接通过 `https://f.shine-shy.com/skills_man.sh` 下载并运行
+2. 后续安装 / 更新 / 卸载优先使用 `skills_man`
+3. 需要切换自定义前缀时，加 `--name <your-prefix>`
+4. 完成后优先使用 `$HOME/.local/bin/<prefix>push` 作为固定提交入口
 
 ### 3. 一键快速启动（本地仓库已是最新时推荐）
 
@@ -227,7 +232,7 @@ find ~/.claude/skills -maxdepth 1 -mindepth 1 -type l | sort
 如果你装错了前缀，或者只是想把这套本地 skill 完整移除，可以直接运行：
 
 ```bash
-./scripts/uninstall.sh
+skills_man uninstall
 ```
 
 默认行为：
@@ -236,10 +241,13 @@ find ~/.claude/skills -maxdepth 1 -mindepth 1 -type l | sort
 - 清理 `~/.codex/skills` 与 `~/.claude/skills` 中指向该仓库的 `<prefix>-*` 软链
 - 清理 `~/.local/bin/<prefix>push`
 - 最后删除安装仓库目录本身
+- 最后清理 `~/.local/bin/skills_man`
 
 常用示例：
 
 ```bash
+skills_man uninstall --dry-run
+skills_man uninstall --install-dir ~/work/r0-skills
 ./scripts/uninstall.sh --dry-run
 ./scripts/uninstall.sh --keep-repo
 ./scripts/uninstall.sh --repo-root ~/work/r0-skills
@@ -248,8 +256,9 @@ find ~/.claude/skills -maxdepth 1 -mindepth 1 -type l | sort
 
 说明：
 
-- 如果你当初用的是默认安装目录，直接运行 `./scripts/uninstall.sh` 即可
-- 如果你安装到了自定义目录，需要显式传 `--repo-root <path>`
+- 如果你当初用的是默认安装目录，直接运行 `skills_man uninstall` 即可
+- 如果通过 `skills_man` 安装到了自定义目录，需要显式传 `skills_man uninstall --install-dir <path>`
+- 如果直接调用 `./scripts/uninstall.sh`，对应参数是 `--repo-root <path>`
 - `--keep-repo` 只清理本地安装入口，不删除仓库目录
 - `--dry-run` 只输出计划删除的路径，不真正执行
 

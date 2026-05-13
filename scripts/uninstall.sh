@@ -124,6 +124,7 @@ queue_skill_links() {
       queue_path "$entry"
     fi
   done < <(find "$base_dir" -maxdepth 1 -mindepth 1 -type l -name "${PREFIX}-*" | sort)
+  return 0
 }
 
 queue_pinned_push_tool() {
@@ -132,7 +133,7 @@ queue_pinned_push_tool() {
 
   push_name="${PREFIX}push"
   pinned_push="$LOCAL_BIN_DIR/$push_name"
-  [[ -L "$pinned_push" ]] || return
+  [[ -L "$pinned_push" ]] || return 0
 
   entry_resolved="$(resolve_path "$pinned_push")"
   expected_repo_push="$(resolve_path "$repo_root/${PREFIX}-submit/scripts/$push_name")"
@@ -141,6 +142,7 @@ queue_pinned_push_tool() {
   if [[ "$entry_resolved" == "$expected_repo_push" || "$entry_resolved" == "$expected_synced_push" ]]; then
     queue_path "$pinned_push"
   fi
+  return 0
 }
 
 assert_safe_repo_root() {

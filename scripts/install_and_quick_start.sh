@@ -2,28 +2,41 @@
 
 set -euo pipefail
 
-if [[ -z "${R0_INSTALL_TEMP_RUNNER:-}" ]]; then
+if [[ -z "${R0_INSTALL_TEMP_RUNNER:-}" && -n "${BASH_SOURCE[0]:-}" && -f "${BASH_SOURCE[0]}" ]]; then
   TMP_BASE="${TMPDIR:-/tmp}"
   TMP_BASE="${TMP_BASE%/}"
   ORIG_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-  TEMP_RUNNER="$(mktemp "$TMP_BASE/install_and_quick_start.XXXXXX")"
+  TEMP_RUNNER="$(mktemp "$TMP_BASE/skills_man.XXXXXX")"
   cp "$ORIG_SCRIPT" "$TEMP_RUNNER"
   chmod +x "$TEMP_RUNNER"
   exec env R0_INSTALL_TEMP_RUNNER=1 bash "$TEMP_RUNNER" "$@"
 fi
 
-DEFAULT_REMOTE="github"
+DEFAULT_REMOTE="origin"
 DEFAULT_BRANCH="main"
 DEFAULT_REPO_NAME="r0-skills"
 DEFAULT_INSTALL_BASE="${HOME}/.local/share"
+DEFAULT_COMMAND_NAME="skills_man"
+INSTALLER_URL="${R0_SKILLS_MAN_URL:-https://f.shine-shy.com/skills_man.sh}"
+CODEX_DIR="${CODEX_SKILLS_DIR:-$HOME/.codex/skills}"
+CLAUDE_DIR="${CLAUDE_SKILLS_DIR:-$HOME/.claude/skills}"
+LOCAL_BIN_DIR="${LOCAL_BIN_DIR:-$HOME/.local/bin}"
 
+ACTION="install"
 REMOTE="$DEFAULT_REMOTE"
 BRANCH="$DEFAULT_BRANCH"
 REPO_NAME="$DEFAULT_REPO_NAME"
 INSTALL_DIR=""
+COMMAND_NAME="${R0_SKILLS_MAN_COMMAND:-$DEFAULT_COMMAND_NAME}"
+COMMAND_PATH=""
 DRY_RUN="false"
+SELF_INSTALL="true"
+OVERWRITE_EXISTING="false"
+UPDATE_EXISTING="false"
+SKIP_EXISTING="false"
 
 declare -a QUICK_START_ARGS=()
+declare -a UNINSTALL_PATHS=()
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   UI_RESET=$'\033[0m'
@@ -69,25 +82,37 @@ get_remote_url() {
 usage() {
   cat <<'EOF'
 用法:
-  install_and_quick_start.sh [--remote <name>] [--branch <name>] [--install-dir <path>] [--repo-name <name>] [--name <prefix>] [--allow-dirty] [--allow-partial] [--dry-run]
+  skills_man [install] [--remote <name>] [--branch <name>] [--install-dir <path>] [--repo-name <name>] [--name <prefix>] [--overwrite] [--update-existing] [--allow-dirty] [--allow-partial] [--dry-run]
+  skills_man uninstall [--install-dir <path>] [--dry-run]
+  skills_man self-install [--dry-run]
 
 说明:
-  - 可单独下载后执行，不要求当前目录已经有仓库
-  - 默认从 github/main 拉取
-  - 若本地没有仓库则 clone；若已有仓库则 fetch + pull --ff-only
+  - 可直接通过 curl 管道执行，首次执行会先安装为 ~/.local/bin/skills_man 命令
+  - 默认从 origin/main 拉取
+  - 若安装目录已有 skill 仓库，默认跳过；交互终端可选择覆盖或更新
   - clone / 更新完成后自动执行仓库内的 scripts/quick_start.sh
+  - uninstall 会清理 skill 软链、固定 push 工具、安装仓库目录和 skills_man 命令
 
 默认值:
-  remote      github
+  remote      origin
   branch      main
   install-dir ~/.local/share/r0-skills
+  command     ~/.local/bin/skills_man
 
 示例:
-  bash install_and_quick_start.sh
-  bash install_and_quick_start.sh --name lyn
-  bash install_and_quick_start.sh --remote origin --install-dir ~/work/r0-skills --name lyn
-  curl -L "<raw-url>" -o /tmp/install_and_quick_start.sh
-  bash /tmp/install_and_quick_start.sh --name lyn
+  curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
+  curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s -- --name lyn
+  skills_man install --overwrite
+  skills_man uninstall
+  curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s -- --remote cggame --install-dir ~/work/r0-skills --name lyn
+  bash scripts/install_and_quick_start.sh --dry-run
+
+可选环境变量:
+  R0_SKILLS_MAN_URL      覆盖自安装下载地址
+  R0_SKILLS_MAN_COMMAND  覆盖安装后的命令名
+  LOCAL_BIN_DIR          覆盖命令安装目录（默认: ~/.local/bin）
+  CODEX_SKILLS_DIR       覆盖 Codex skill 目录
+  CLAUDE_SKILLS_DIR      覆盖 Claude skill 目录
 EOF
 }
 
@@ -108,6 +133,83 @@ ensure_remote_known() {
     echo "可用远端: github / origin / cggame" >&2
     exit 1
   fi
+}
+
+resolve_path() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+
+print(Path(sys.argv[1]).expanduser().resolve(strict=False))
+PY
+}
+
+path_is_under() {
+  local path="$1"
+  local root="$2"
+  case "$path" in
+    "$root"|"$root"/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+assert_safe_remove_root() {
+  local path="$1"
+  case "$path" in
+    ""|"/"|"$HOME"|"$HOME/"|"$HOME/.local"|"$HOME/.local/"|"$HOME/.local/share"|"$HOME/.local/share/")
+      echo "拒绝对危险路径执行删除: $path" >&2
+      exit 1
+      ;;
+  esac
+}
+
+has_skill_install() {
+  local repo_dir="$1"
+  local skill_dir
+  [[ -d "$repo_dir" ]] || return 1
+  [[ -d "$repo_dir/shared" || -x "$repo_dir/scripts/quick_start.sh" ]] || return 1
+  shopt -s nullglob
+  for skill_dir in "$repo_dir"/*-request "$repo_dir"/*-submit "$repo_dir"/*-work; do
+    [[ -d "$skill_dir" ]] || continue
+    return 0
+  done
+  return 1
+}
+
+install_command_tool() {
+  local source_script
+  mkdir -p "$(dirname "$COMMAND_PATH")"
+
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "command_action=install"
+    echo "command_path=$COMMAND_PATH"
+    echo "command_source=$INSTALLER_URL"
+    return
+  fi
+
+  source_script="${BASH_SOURCE[0]:-}"
+  if [[ -n "$source_script" && -f "$source_script" ]]; then
+    cp "$source_script" "$COMMAND_PATH"
+  else
+    command -v curl >/dev/null 2>&1 || {
+      echo "缺少 curl，无法安装命令工具: $COMMAND_PATH" >&2
+      exit 1
+    }
+    curl -fsSL "$INSTALLER_URL" -o "$COMMAND_PATH"
+  fi
+  chmod +x "$COMMAND_PATH"
+  echo "command_installed=$COMMAND_PATH"
+  case ":$PATH:" in
+    *":$(dirname "$COMMAND_PATH"):"*)
+      ;;
+    *)
+      echo "command_path_warning=$(dirname "$COMMAND_PATH") 不在 PATH 中；可手动加入 shell 配置" >&2
+      ;;
+  esac
 }
 
 ensure_repo_remotes() {
@@ -144,17 +246,107 @@ update_repo() {
   git -C "$repo_dir" pull --ff-only "$REMOTE" "$BRANCH"
 }
 
+overwrite_repo() {
+  local repo_dir="$1"
+  assert_safe_remove_root "$repo_dir"
+  rm -rf "$repo_dir"
+  clone_repo "$repo_dir"
+}
+
+select_existing_repo_action() {
+  local repo_dir="$1"
+  local reply
+
+  if [[ "$OVERWRITE_EXISTING" == "true" ]]; then
+    printf '%s\n' "overwrite"
+    return
+  fi
+  if [[ "$UPDATE_EXISTING" == "true" ]]; then
+    printf '%s\n' "update"
+    return
+  fi
+  if [[ "$SKIP_EXISTING" == "true" ]]; then
+    printf '%s\n' "skip"
+    return
+  fi
+
+  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
+    printf '%s\n' "skip"
+    return
+  fi
+
+  printf '检测到安装目录已存在 skill 仓库: %s\n' "$repo_dir" >/dev/tty
+  printf '请选择: [s] 跳过(默认) / [o] 覆盖重装 / [u] 更新已有仓库: ' >/dev/tty
+  IFS= read -r reply </dev/tty || reply=""
+  case "$reply" in
+    o|O|overwrite|OVERWRITE|y|Y|yes|YES)
+      printf '%s\n' "overwrite"
+      ;;
+    u|U|update|UPDATE)
+      printf '%s\n' "update"
+      ;;
+    *)
+      printf '%s\n' "skip"
+      ;;
+  esac
+}
+
+prepare_repo() {
+  local repo_dir="$1"
+  local action
+
+  if has_skill_install "$repo_dir"; then
+    action="$(select_existing_repo_action "$repo_dir")"
+    echo "existing_install_action=$action"
+    case "$action" in
+      overwrite)
+        overwrite_repo "$repo_dir"
+        ;;
+      update)
+        update_repo "$repo_dir"
+        ;;
+      skip)
+        echo "install_skipped=$repo_dir"
+        return 1
+        ;;
+    esac
+    return 0
+  fi
+
+  if [[ -e "$repo_dir" && ! -d "$repo_dir/.git" ]]; then
+    echo "安装目录已存在且不是 Git 仓库: $repo_dir" >&2
+    exit 1
+  fi
+
+  if [[ -d "$repo_dir/.git" ]]; then
+    update_repo "$repo_dir"
+  else
+    clone_repo "$repo_dir"
+  fi
+}
+
 print_plan() {
   local repo_dir="$1"
   local remote_url
   remote_url="$(get_remote_url "$REMOTE")"
   echo "mode=dry-run"
+  echo "action=$ACTION"
+  echo "command_path=$COMMAND_PATH"
+  echo "installer_url=$INSTALLER_URL"
   echo "remote=$REMOTE"
   echo "branch=$BRANCH"
   echo "remote_url=$remote_url"
   echo "install_dir=$repo_dir"
-  if [[ -d "$repo_dir/.git" ]]; then
-    echo "repo_action=update"
+  if has_skill_install "$repo_dir"; then
+    if [[ "$OVERWRITE_EXISTING" == "true" ]]; then
+      echo "repo_action=overwrite"
+    elif [[ "$UPDATE_EXISTING" == "true" ]]; then
+      echo "repo_action=update"
+    else
+      echo "repo_action=skip_existing"
+    fi
+  elif [[ -d "$repo_dir/.git" ]]; then
+    echo "repo_action=update_existing_git"
     echo "fetch_cmd=git -C $repo_dir fetch --prune $REMOTE $BRANCH"
     echo "checkout_cmd=git -C $repo_dir checkout $BRANCH"
     echo "pull_cmd=git -C $repo_dir pull --ff-only $REMOTE $BRANCH"
@@ -171,6 +363,83 @@ run_quick_start() {
     bash "$repo_dir/scripts/quick_start.sh" "${QUICK_START_ARGS[@]}"
   else
     bash "$repo_dir/scripts/quick_start.sh"
+  fi
+}
+
+remove_path() {
+  local path="$1"
+  if [[ "$DRY_RUN" == "true" ]]; then
+    echo "would_remove=$path"
+    return
+  fi
+  rm -rf "$path"
+  echo "removed=$path"
+}
+
+queue_fallback_uninstall_paths() {
+  local repo_dir="$1"
+  local entry resolved
+  UNINSTALL_PATHS=()
+
+  for base_dir in "$CODEX_DIR" "$CLAUDE_DIR" "$LOCAL_BIN_DIR"; do
+    [[ -d "$base_dir" ]] || continue
+    while IFS= read -r entry; do
+      [[ -n "$entry" ]] || continue
+      resolved="$(resolve_path "$entry")"
+      if path_is_under "$resolved" "$repo_dir"; then
+        UNINSTALL_PATHS+=("$entry")
+      fi
+    done < <(find "$base_dir" -maxdepth 1 -mindepth 1 -type l | sort)
+  done
+
+  if [[ -e "$COMMAND_PATH" || -L "$COMMAND_PATH" ]]; then
+    UNINSTALL_PATHS+=("$COMMAND_PATH")
+  fi
+}
+
+fallback_uninstall() {
+  local repo_dir="$1"
+  local path
+  assert_safe_remove_root "$repo_dir"
+  queue_fallback_uninstall_paths "$repo_dir"
+  echo "repo_root=$repo_dir"
+  echo "command_path=$COMMAND_PATH"
+  echo "dry_run=$DRY_RUN"
+
+  if [[ ${#UNINSTALL_PATHS[@]} -eq 0 ]]; then
+    echo "link_cleanup=<none>"
+  else
+    for path in "${UNINSTALL_PATHS[@]}"; do
+      remove_path "$path"
+    done
+  fi
+
+  if [[ -d "$repo_dir" ]]; then
+    remove_path "$repo_dir"
+  else
+    echo "repo_missing=$repo_dir"
+  fi
+  echo "[OK] uninstall completed."
+}
+
+run_uninstall() {
+  local repo_dir="$1"
+  local uninstall_script="$repo_dir/scripts/uninstall.sh"
+
+  if [[ -x "$uninstall_script" ]]; then
+    if [[ "$DRY_RUN" == "true" ]]; then
+      bash "$uninstall_script" --repo-root "$repo_dir" --dry-run
+    else
+      bash "$uninstall_script" --repo-root "$repo_dir"
+    fi
+  else
+    fallback_uninstall "$repo_dir"
+  fi
+
+  if [[ -e "$COMMAND_PATH" || -L "$COMMAND_PATH" ]]; then
+    remove_path "$COMMAND_PATH"
+  elif [[ "$DRY_RUN" == "true" ]]; then
+    echo "command_missing=$COMMAND_PATH"
   fi
 }
 
@@ -219,6 +488,19 @@ print_intro() {
   printf '%b\n' "${UI_DIM}小提示: 如果 Codex / Claude Code 里还没看到新 skill，重新开一个新会话通常就够了。 (¬‿¬)${UI_RESET}"
 }
 
+if [[ $# -gt 0 ]]; then
+  case "$1" in
+    install|uninstall|self-install)
+      ACTION="$1"
+      shift
+      ;;
+    help)
+      usage
+      exit 0
+      ;;
+  esac
+fi
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --remote)
@@ -253,6 +535,30 @@ while [[ $# -gt 0 ]]; do
       REPO_NAME="$2"
       shift 2
       ;;
+    --command-name)
+      [[ $# -ge 2 ]] || {
+        echo "--command-name 缺少参数" >&2
+        exit 1
+      }
+      COMMAND_NAME="$2"
+      shift 2
+      ;;
+    --overwrite|--force|--yes)
+      OVERWRITE_EXISTING="true"
+      shift
+      ;;
+    --update-existing)
+      UPDATE_EXISTING="true"
+      shift
+      ;;
+    --skip-existing)
+      SKIP_EXISTING="true"
+      shift
+      ;;
+    --no-self-install)
+      SELF_INSTALL="false"
+      shift
+      ;;
     --name|--allow-dirty|--allow-partial)
       QUICK_START_ARGS+=("$1")
       if [[ "$1" == "--name" ]]; then
@@ -283,39 +589,51 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-ensure_remote_known
-
 if [[ -z "$INSTALL_DIR" ]]; then
   INSTALL_DIR="${DEFAULT_INSTALL_BASE}/${REPO_NAME}"
 fi
-INSTALL_DIR="$(
-  python3 - "$INSTALL_DIR" <<'PY'
-from pathlib import Path
-import sys
+INSTALL_DIR="$(resolve_path "$INSTALL_DIR")"
+COMMAND_PATH="$(resolve_path "$LOCAL_BIN_DIR/$COMMAND_NAME")"
 
-print(Path(sys.argv[1]).expanduser().resolve())
-PY
-)"
+case "$ACTION" in
+  self-install)
+    install_command_tool
+    exit 0
+    ;;
+  uninstall)
+    run_uninstall "$INSTALL_DIR"
+    exit 0
+    ;;
+  install)
+    ;;
+  *)
+    echo "未知动作: $ACTION" >&2
+    usage
+    exit 1
+    ;;
+esac
+
+ensure_remote_known
 
 if [[ "$DRY_RUN" == "true" ]]; then
+  if [[ "$SELF_INSTALL" == "true" ]]; then
+    install_command_tool
+  fi
   ensure_quick_start_arg "--allow-dirty"
   print_plan "$INSTALL_DIR"
   if [[ -x "$INSTALL_DIR/scripts/quick_start.sh" ]]; then
-    run_quick_start "$INSTALL_DIR"
+    if ! has_skill_install "$INSTALL_DIR"; then
+      run_quick_start "$INSTALL_DIR"
+    fi
   fi
   exit 0
 fi
 
-if [[ -e "$INSTALL_DIR" && ! -d "$INSTALL_DIR/.git" ]]; then
-  echo "安装目录已存在且不是 Git 仓库: $INSTALL_DIR" >&2
-  exit 1
+if [[ "$SELF_INSTALL" == "true" ]]; then
+  install_command_tool
 fi
 
-if [[ -d "$INSTALL_DIR/.git" ]]; then
-  update_repo "$INSTALL_DIR"
-else
-  clone_repo "$INSTALL_DIR"
-fi
+prepare_repo "$INSTALL_DIR" || exit 0
 
 if [[ ! -x "$INSTALL_DIR/scripts/quick_start.sh" ]]; then
   echo "未找到 quick_start.sh: $INSTALL_DIR/scripts/quick_start.sh" >&2
