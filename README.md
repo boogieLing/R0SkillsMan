@@ -86,8 +86,7 @@ cd r0-skills
 如果你希望直接下载一个脚本，然后本地一键完成 clone / update + quick start，直接运行：
 
 ```bash
-curl -L "https://f.shine-shy.com/skills_man.sh" -o /tmp/skills_man.sh && \
-  bash /tmp/skills_man.sh
+curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 ```
 
 默认行为：
