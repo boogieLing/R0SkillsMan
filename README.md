@@ -28,26 +28,26 @@
 
 | Skill | 作用 |
 | --- | --- |
-| `r0-request` | 把自然语言需求压成结构化 DSL，并落盘到 `./r0/request/`；其价值在于把需求改写成更贴近 controller / planner 风格的执行契约，从而更容易驱动模型进入“计划 -> 执行 -> 校验 -> 更新状态”的工作流。 |
-| `r0-restrict` | 作为后端方案约束层，从数据流、IO、组件依赖三维做后端门禁，并可渐进式嵌入 `r0-request`、`r0-work`、`r0-review`。 |
-| `r0-work` | 长时间工程实施 skill，强调范围锁定、控制循环、验证、修复与交付闭环。 |
-| `r0-review` | 结构化代码审查与风险分析 skill，用于 review、回归检查与问题沉淀。 |
-| `r0-submit` | 提交与推送安全收尾 skill，用于 scope 校验、review-before-push、提交记录与安全调用 `r0push`。 |
+| `r0-request` | 把自然语言需求整理成结构化执行 DSL，抽取目标、成功标准、范围、约束、任务 DAG、验证系统和交付格式；后端方案会融合 `r0-restrict` 的数据流、IO、依赖与 To-C 约束，并通过脚本保存与校验 `./r0/request/` 文档。 |
+| `r0-restrict` | 后端方案约束与技术评审层，强制从数据流转、IO 操作、组件依赖三维推演，覆盖 DB/Redis/RPC/MQ/定时任务/分布式锁/高并发、防刷、兼容性、降级和可观测性，可嵌入 `r0-request`、`r0-work`、`r0-review`。 |
+| `r0-work` | 长时间工程实施 skill，负责范围锁定、git baseline、分阶段实现、编译验证、失败控制与自动修复闭环；内置语言参考约束（Go/Python/Rust/Swift）和方法注释、逻辑注释、复杂度检查脚本，用于把实现质量门禁前置。 |
+| `r0-review` | 结构化代码审查 skill，面向变更代码、脚本和交付产物做 bug、回归、安全、复杂度、可维护性和测试缺口检查；强调 findings-first 输出，并把重要审查记录沉淀到 `./r0/review/`。 |
+| `r0-submit` | 提交与推送安全收尾 skill，负责提交范围核查、review-before-push、提交记录、远端分支快照和安全调用 `r0push`；`r0push` 会选择推送 remote、识别目标分支、生成 source branch，并给出 GitHub PR / GitLab MR 路由。 |
 
 ### 代码阅读与架构理解
 
 | Skill | 作用 |
 | --- | --- |
-| `r0-roadmap` | 融合原 `r0-read` 的系统化读代码流程，使用 AST、依赖图、并查集、SCC、DAG 分层和中心性分析入口、模块、依赖、职责与功能流，并输出 roadmap 文档。 |
-| `r0-question` | 中文知识问答与问题澄清 skill，适合梳理概念、约束、疑点与取舍。 |
+| `r0-roadmap` | 项目/目录架构阅读与 roadmap 生成 skill，融合原 `r0-read` 的系统化读代码流程；使用 AST、结构扫描、依赖图、并查集、Tarjan SCC、DAG 分层、中心性和目录热区分析入口、模块、依赖、职责与功能流，并输出 `./r0/roadmap/` 文档和可选 `AGENTS.md` 摘要。 |
+| `r0-question` | 中文知识问答、概念解释和问题澄清 skill，适合在实现前梳理背景、术语、约束、疑点、取舍和方案边界；输出必须分点、结构化，偏分析与澄清，不默认改代码。 |
 
 ### 运营与专项场景
 
 | Skill | 作用 |
 | --- | --- |
-| `r0-skill-man` | skill 生态治理与日常维护。 |
-| `r0-tech-graph` | 面向技术架构图的浅色 HTML 绘图 skill，最终产物对齐 `architecture-diagram-generator` 的自包含 HTML，同时融合 SVG 模板、Flat UI Colors US 色系、布局校验和可选 PNG 导出能力。 |
-| `r0-writer` | 面向公众号长文与项目化写作的文章交付 skill。 |
+| `r0-skill-man` | 本地 skill 生态治理与日常维护 skill，用于清理废弃技能、巡检 shared contract、本地记录路径、摘要卡片约束和同步漂移；提供 `check_r0_shared_contract.py`、`auto_evolve_r0_skills.py`、`sync_r0_skills.py` 等治理脚本，并沉淀 bad case / maintenance 证据。 |
+| `r0-tech-graph` | 技术架构图生成 skill，面向系统架构、流程架构、数据流、Agent 架构、部署图和拓扑图；默认产出浅色、自包含 HTML，配套 SVG 模板生成、箭头吸附、布局校验、HTML 包装、inline SVG 提取和可选 PNG 导出。 |
+| `r0-writer` | 项目化长文写作 skill，面向公众号、技术分析、教程、产品稿和行业评论，把 notes、brief、链接、PDF、转录稿或粗稿整理为 `outline.md`、`style.md`、`draft.md`、`notes.md` 和发布级 Markdown。 |
 
 ### 仓库入口
 
