@@ -96,7 +96,7 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 - 默认分支 `main`
 - 默认安装到 `~/.local/share/r0-skills`
 - 本地没有仓库时先 clone
-- 安装目录已有 skill 仓库时会询问是否覆盖；默认跳过
+- 安装目录已有 skill 仓库时默认更新；可显式跳过或覆盖
 - 拉取成功后自动继续执行仓库内的 `scripts/quick_start.sh`
 
 常用示例：
@@ -107,6 +107,7 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s -- --name lyn
 curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s -- --remote cggame --branch main --allow-dirty
 skills_man install --overwrite
 skills_man install --update-existing
+skills_man install --skip-existing
 skills_man uninstall
 ./scripts/install_and_quick_start.sh --dry-run
 ```

@@ -89,7 +89,7 @@ usage() {
 说明:
   - 可直接通过 curl 管道执行，首次执行会先安装为 ~/.local/bin/skills_man 命令
   - 默认从 github/main 拉取
-  - 若安装目录已有 skill 仓库，默认跳过；交互终端可选择覆盖或更新
+  - 若安装目录已有 skill 仓库，默认更新；可显式选择跳过或覆盖
   - clone / 更新完成后自动执行仓库内的 scripts/quick_start.sh
   - uninstall 会清理 skill 软链、固定 push 工具、安装仓库目录和 skills_man 命令
 
@@ -255,40 +255,16 @@ overwrite_repo() {
 
 select_existing_repo_action() {
   local repo_dir="$1"
-  local reply
 
   if [[ "$OVERWRITE_EXISTING" == "true" ]]; then
     printf '%s\n' "overwrite"
-    return
-  fi
-  if [[ "$UPDATE_EXISTING" == "true" ]]; then
-    printf '%s\n' "update"
     return
   fi
   if [[ "$SKIP_EXISTING" == "true" ]]; then
     printf '%s\n' "skip"
     return
   fi
-
-  if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
-    printf '%s\n' "skip"
-    return
-  fi
-
-  printf '检测到安装目录已存在 skill 仓库: %s\n' "$repo_dir" >/dev/tty
-  printf '请选择: [s] 跳过(默认) / [o] 覆盖重装 / [u] 更新已有仓库: ' >/dev/tty
-  IFS= read -r reply </dev/tty || reply=""
-  case "$reply" in
-    o|O|overwrite|OVERWRITE|y|Y|yes|YES)
-      printf '%s\n' "overwrite"
-      ;;
-    u|U|update|UPDATE)
-      printf '%s\n' "update"
-      ;;
-    *)
-      printf '%s\n' "skip"
-      ;;
-  esac
+  printf '%s\n' "update"
 }
 
 prepare_repo() {
@@ -340,10 +316,10 @@ print_plan() {
   if has_skill_install "$repo_dir"; then
     if [[ "$OVERWRITE_EXISTING" == "true" ]]; then
       echo "repo_action=overwrite"
-    elif [[ "$UPDATE_EXISTING" == "true" ]]; then
-      echo "repo_action=update"
-    else
+    elif [[ "$SKIP_EXISTING" == "true" ]]; then
       echo "repo_action=skip_existing"
+    else
+      echo "repo_action=update"
     fi
   elif [[ -d "$repo_dir/.git" ]]; then
     echo "repo_action=update_existing_git"
