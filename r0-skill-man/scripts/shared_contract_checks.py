@@ -12,6 +12,12 @@ SHARED_RESULT_TOKENS = (
     "summary-card/result contract",
 )
 CARD_TOKENS = ("首屏摘要卡片", "摘要卡片", "summary-card", "summary card")
+TOKEN_EFFICIENT_TOKENS = (
+    "Token-Efficient Prompting",
+    "Task / Context / Constraints / Output",
+    "Delta 输出",
+    "No preamble",
+)
 LOCAL_RECORD_RE = re.compile(r"\./r0/([a-z0-9-]+)(?:/|\b)")
 LEGACY_LOCAL_RECORD_RE = re.compile(r"(?<!\.)\./r0-[a-z0-9-]+/")
 LEGACY_GITIGNORE_RE = re.compile(r"\^r0-[a-z0-9-]+/\$")
@@ -81,6 +87,22 @@ def validate_repo_contract(repo_root: Path, prefix: str = "r0-") -> List[str]:
     contract_file = repo_root / "shared" / "r0-core-contract.md"
     if not contract_file.exists():
         issues.append("缺少 shared/r0-core-contract.md")
+    else:
+        contract_text = contract_file.read_text(encoding="utf-8")
+        if "shared/token-efficient-prompting.md" not in contract_text:
+            issues.append("shared/r0-core-contract.md 未声明 token-efficient prompting 基础开发逻辑")
+
+    token_file = repo_root / "shared" / "token-efficient-prompting.md"
+    if not token_file.exists():
+        issues.append("缺少 shared/token-efficient-prompting.md")
+    else:
+        token_text = token_file.read_text(encoding="utf-8")
+        missing_tokens = [token for token in TOKEN_EFFICIENT_TOKENS if token not in token_text]
+        if missing_tokens:
+            issues.append(
+                "shared/token-efficient-prompting.md 缺少关键 token-efficient 约束: "
+                + ", ".join(missing_tokens)
+            )
 
     gitignore = repo_root / ".gitignore"
     if not gitignore.exists():

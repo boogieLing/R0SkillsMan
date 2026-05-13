@@ -10,7 +10,7 @@ from shared_contract_checks import detect_repo_root, discover_skills, validate_r
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="校验 r0-* skills 的 shared contract、本地记录路径、摘要卡片与 repo hygiene 约束。"
+        description="校验 r0-* skills 的 shared contract、token-efficient prompting、本地记录路径、摘要卡片与 repo hygiene 约束。"
     )
     parser.add_argument(
         "--repo-root",
@@ -67,7 +67,7 @@ def main() -> int:
     if repo_issues or skill_failures:
         return 2
 
-    print("检查通过：shared contract、本地记录路径、摘要卡片与 repo hygiene 约束一致。")
+    print("检查通过：shared contract、token-efficient prompting、本地记录路径、摘要卡片与 repo hygiene 约束一致。")
     return 0
 
 

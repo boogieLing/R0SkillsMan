@@ -89,6 +89,11 @@ git restore --staged -- r0/ 'r0-*'
 ## 4. Unified Result Contract
 
 - 所有自然语言结果默认使用中文，除非 skill 自身明确要求其他语言。
+- 所有 `r0-*` skill 的提示词与输出设计必须遵循 `shared/token-efficient-prompting.md`，把 Token-Efficient Prompting 作为基础开发逻辑。
+- 默认假设专家受众，避免基础科普；除非用户要求，不输出 preamble、结尾总结或重复用户输入。
+- 所有继续、优化、调整、补充类任务默认使用 Delta 输出：只写新增或变化部分，不重复完整上下文。
+- 复杂问题优先压缩成 `Task / Context / Constraints / Output` 四槽，再展开分析或执行。
+- 输出必须有预算意识：简单任务压缩到最多 5 条要点，一般分析最多 7 个小节，深度脑暴最多 7 个方向。
 - 最终结果优先按以下顺序输出：
   1. `首屏摘要卡片`
   2. `执行摘要`

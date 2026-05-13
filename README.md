@@ -10,6 +10,7 @@
 - `shared/` 放跨 skill 复用的统一契约。
 - `scripts/` 放安装、同步、初始化和校验脚本。
 - 仓库根目录下的 `r0/` 放本地执行记录、坏例子、研究笔记和阶段产物。
+- `shared/token-efficient-prompting.md` 是所有 skill 的基础开发逻辑：结构化输入、专家模式、输出预算、Delta 输出、No preamble、术语压缩和负约束优先。
 
 命名上有两层约定：
 
@@ -39,7 +40,7 @@
 | Skill | 作用 |
 | --- | --- |
 | `r0-roadmap` | 项目/目录架构阅读与 roadmap 生成 skill，融合原 `r0-read` 的系统化读代码流程；使用 AST、结构扫描、依赖图、并查集、Tarjan SCC、DAG 分层、中心性和目录热区分析入口、模块、依赖、职责与功能流，并输出 `./r0/roadmap/` 文档和可选 `AGENTS.md` 摘要。 |
-| `r0-question` | 中文知识问答、概念解释和问题澄清 skill，适合在实现前梳理背景、术语、约束、疑点、取舍和方案边界；输出必须分点、结构化，偏分析与澄清，不默认改代码。 |
+| `r0-question` | 低 token 的中文探索式问答、联网真源检索、问题挖掘、脑暴、思路分析与方案扩展 skill，适合把模糊问题拆成 `Task / Context / Constraints / Output`、前提、变量、真实外部信号、方向选项、取舍判断和下一步行动；会检索官方资料、GitHub、Reddit、论坛等来源，不默认改代码。 |
 
 ### 运营与专项场景
 
@@ -52,6 +53,7 @@
 ### 仓库入口
 
 - `shared/r0-core-contract.md` 是当前 skill 体系的共享契约入口
+- `shared/token-efficient-prompting.md` 是所有 `r0-*` skill 的 Token-Efficient Prompting 基础开发逻辑
 - `scripts/install_and_quick_start.sh` 是 `skills_man` 命令入口，负责自安装、安装、卸载和 quick start 编排
 - `scripts/quick_start.sh` 负责命名初始化、skill 同步、链接校验与 `r0push` 固定
 - `scripts/uninstall.sh` 负责清理误安装留下的 skill 软链、固定 push 工具和仓库目录
@@ -372,6 +374,9 @@ Claude Code 侧通常用 slash command 风格：
 所有 `r0-*` skill 都应遵守 `shared/r0-core-contract.md`。当前统一约束包括：
 
 - 执行结果遵循统一摘要卡片与结构化输出约定
+- 提示词与输出设计遵循 `shared/token-efficient-prompting.md`
+- 默认使用 `Task / Context / Constraints / Output` 压缩问题
+- 默认专家模式、No preamble、输出预算和 Delta 输出
 - 本地记录统一落到 `./r0/<skill-key>/`
 - `r0/` 默认不进入版本控制
 - 若本地记录被误加入暂存区，统一使用：

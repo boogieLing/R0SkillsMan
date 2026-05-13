@@ -8,6 +8,7 @@ description: "Deterministic daily maintenance for local skill ecosystems: clean 
 ## Shared Contract
 
 - Execute only after loading `../shared/r0-core-contract.md`.
+- Treat `../shared/token-efficient-prompting.md` as the baseline development logic for every `r0-*` skill.
 - Result output MUST follow the shared result contract / 共享结果契约: start with the unified `首屏摘要卡片`, then provide structured sections and `自动进化`.
 - The local record directory for this skill is `./r0/skill-man/`.
 - Every maintenance cycle MUST leave its execution record, bad cases, and research notes under `./r0/skill-man/`.
@@ -85,6 +86,7 @@ For each retained skill, evaluate:
 - Inconsistent structure
 - Ambiguous naming or trigger description
 - Weak output contract
+- Drift from Token-Efficient Prompting baseline
 - Misalignment with current AI-SOP workflow
 - Entropy impact (reduces vs increases complexity)
 
@@ -94,6 +96,7 @@ Allowed updates:
 - Refine frontmatter description trigger clarity
 - Tighten workflow steps and constraints
 - Standardize deterministic output schema
+- Compress verbose prompts into structured, delta-friendly, no-preamble instructions
 - Remove redundant or ambiguous instructions
 - Align with current engineering workflow expectations
 

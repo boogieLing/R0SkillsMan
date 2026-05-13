@@ -1,4 +1,4 @@
 interface:
   display_name: "R0 Question"
-  short_description: "Help with R0 Question tasks"
-  default_prompt: "使用 $r0-question 执行当前任务，并按技能规范输出中文结构化结果。"
+  short_description: "低 token 的中文探索式问答、联网真源检索、问题挖掘、脑暴与思路扩展。"
+  default_prompt: "使用 $r0-question 联网检索官方、论坛、Reddit 等真实来源，按 Task/Context/Constraints/Output 压缩问题，挖掘前提、变量、思路方向、取舍和下一步；输出中文结构化结果，只给可行动变化。"
