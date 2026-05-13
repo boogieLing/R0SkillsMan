@@ -12,7 +12,7 @@ if [[ -z "${R0_INSTALL_TEMP_RUNNER:-}" && -n "${BASH_SOURCE[0]:-}" && -f "${BASH
   exec env R0_INSTALL_TEMP_RUNNER=1 bash "$TEMP_RUNNER" "$@"
 fi
 
-DEFAULT_REMOTE="origin"
+DEFAULT_REMOTE="github"
 DEFAULT_BRANCH="main"
 DEFAULT_REPO_NAME="r0-skills"
 DEFAULT_INSTALL_BASE="${HOME}/.local/share"
@@ -88,13 +88,13 @@ usage() {
 
 说明:
   - 可直接通过 curl 管道执行，首次执行会先安装为 ~/.local/bin/skills_man 命令
-  - 默认从 origin/main 拉取
+  - 默认从 github/main 拉取
   - 若安装目录已有 skill 仓库，默认跳过；交互终端可选择覆盖或更新
   - clone / 更新完成后自动执行仓库内的 scripts/quick_start.sh
   - uninstall 会清理 skill 软链、固定 push 工具、安装仓库目录和 skills_man 命令
 
 默认值:
-  remote      origin
+  remote      github
   branch      main
   install-dir ~/.local/share/r0-skills
   command     ~/.local/bin/skills_man

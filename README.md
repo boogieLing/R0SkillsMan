@@ -92,7 +92,7 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 默认行为：
 
 - 先安装命令工具到 `~/.local/bin/skills_man`
-- 默认从远端 `origin` 拉取
+- 默认从远端 `github` 拉取
 - 默认分支 `main`
 - 默认安装到 `~/.local/share/r0-skills`
 - 本地没有仓库时先 clone
