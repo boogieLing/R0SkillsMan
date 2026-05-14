@@ -41,10 +41,12 @@ SELF_INSTALL="true"
 OVERWRITE_EXISTING="false"
 UPDATE_EXISTING="false"
 SKIP_EXISTING="false"
+SELECTED_REMOTE=""
 
 declare -a QUICK_START_ARGS=()
 declare -a UNINSTALL_PATHS=()
 declare -a LINKED_REPO_CANDIDATES=()
+declare -a REMOTE_CANDIDATES=()
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   UI_RESET=$'\033[0m'
@@ -73,13 +75,13 @@ parse_key() {
 get_remote_url() {
   case "$1" in
     github)
-      printf '%s' 'git@github.com:boogieLing/R0SkillsMan.git'
+      printf '%s' "${R0_REMOTE_URL_GITHUB:-git@github.com:boogieLing/R0SkillsMan.git}"
       ;;
     origin)
-      printf '%s' 'git@gl.quanyougame.net:lynsan/skills-man.git'
+      printf '%s' "${R0_REMOTE_URL_ORIGIN:-git@gl.quanyougame.net:lynsan/skills-man.git}"
       ;;
     cggame)
-      printf '%s' 'git@gl.cggame123.com:lynsan/skills-man.git'
+      printf '%s' "${R0_REMOTE_URL_CGGAME:-git@gl.cggame123.com:lynsan/skills-man.git}"
       ;;
     *)
       return 1
@@ -96,7 +98,7 @@ usage() {
 
 说明:
   - 可直接通过 curl 管道执行，首次执行会先安装为 ~/.local/bin/skills_man 命令
-  - 默认从 github/main 拉取
+  - 默认先从 github/main 拉取；若无权限或失败，会立刻尝试 origin、cggame
   - 若直接从本地 skill 仓库执行脚本，默认复用当前仓库，兼容旧版直接执行方式
   - 若已存在旧 skill 软链，默认反推出旧安装仓库并复用
   - 若安装目录已有 skill 仓库，默认更新；可显式选择跳过或覆盖
@@ -105,6 +107,7 @@ usage() {
 
 默认值:
   remote      github
+              拉取失败时自动按 github -> origin -> cggame 回退
   branch      main
   install-dir ~/.local/share/r0-skills
               直接本地仓库执行或检测到旧软链时，会自动复用对应仓库
@@ -124,6 +127,9 @@ usage() {
   LOCAL_BIN_DIR          覆盖命令安装目录（默认: ~/.local/bin）
   CODEX_SKILLS_DIR       覆盖 Codex skill 目录
   CLAUDE_SKILLS_DIR      覆盖 Claude skill 目录
+  R0_REMOTE_URL_GITHUB   覆盖 github 仓库地址
+  R0_REMOTE_URL_ORIGIN   覆盖 origin 仓库地址
+  R0_REMOTE_URL_CGGAME   覆盖 cggame 仓库地址
 EOF
 }
 
@@ -144,6 +150,31 @@ ensure_remote_known() {
     echo "可用远端: github / origin / cggame" >&2
     exit 1
   fi
+}
+
+build_remote_candidates() {
+  local name existing item
+  REMOTE_CANDIDATES=()
+  for name in "$REMOTE" github origin cggame; do
+    get_remote_url "$name" >/dev/null || continue
+    existing="false"
+    if (( ${#REMOTE_CANDIDATES[@]} > 0 )); then
+      for item in "${REMOTE_CANDIDATES[@]}"; do
+        if [[ "$item" == "$name" ]]; then
+          existing="true"
+          break
+        fi
+      done
+    fi
+    if [[ "$existing" == "false" ]]; then
+      REMOTE_CANDIDATES+=("$name")
+    fi
+  done
+}
+
+remote_candidates_text() {
+  build_remote_candidates
+  printf '%s' "${REMOTE_CANDIDATES[*]}"
 }
 
 resolve_path() {
@@ -297,23 +328,57 @@ ensure_repo_remotes() {
 
 clone_repo() {
   local repo_dir="$1"
-  local remote_url
-  remote_url="$(get_remote_url "$REMOTE")"
+  local remote_name remote_url tmp_clone
   mkdir -p "$(dirname "$repo_dir")"
-  git clone --origin "$REMOTE" --branch "$BRANCH" "$remote_url" "$repo_dir"
-  ensure_repo_remotes "$repo_dir"
+  build_remote_candidates
+  for remote_name in "${REMOTE_CANDIDATES[@]}"; do
+    remote_url="$(get_remote_url "$remote_name")"
+    tmp_clone="${repo_dir}.tmp.${remote_name}.$$"
+    rm -rf "$tmp_clone"
+    echo "clone_attempt_remote=$remote_name"
+    if git clone --origin "$remote_name" --branch "$BRANCH" "$remote_url" "$tmp_clone"; then
+      mv "$tmp_clone" "$repo_dir"
+      SELECTED_REMOTE="$remote_name"
+      REMOTE="$remote_name"
+      ensure_repo_remotes "$repo_dir"
+      echo "selected_remote=$remote_name"
+      return 0
+    fi
+    echo "clone_attempt_failed=$remote_name" >&2
+    rm -rf "$tmp_clone"
+  done
+  echo "所有远端 clone 均失败: ${REMOTE_CANDIDATES[*]}" >&2
+  exit 1
 }
 
 update_repo() {
   local repo_dir="$1"
+  local remote_name remote_ref
   ensure_repo_remotes "$repo_dir"
-  git -C "$repo_dir" fetch --prune "$REMOTE" "$BRANCH"
+  build_remote_candidates
+  SELECTED_REMOTE=""
+  for remote_name in "${REMOTE_CANDIDATES[@]}"; do
+    remote_ref="refs/remotes/$remote_name/$BRANCH"
+    echo "fetch_attempt_remote=$remote_name"
+    if git -C "$repo_dir" fetch --prune "$remote_name" "+refs/heads/$BRANCH:$remote_ref"; then
+      SELECTED_REMOTE="$remote_name"
+      REMOTE="$remote_name"
+      echo "selected_remote=$remote_name"
+      break
+    fi
+    echo "fetch_attempt_failed=$remote_name" >&2
+  done
+  if [[ -z "$SELECTED_REMOTE" ]]; then
+    echo "所有远端 fetch 均失败: ${REMOTE_CANDIDATES[*]}" >&2
+    exit 1
+  fi
+  remote_ref="refs/remotes/$SELECTED_REMOTE/$BRANCH"
   if git -C "$repo_dir" show-ref --verify --quiet "refs/heads/$BRANCH"; then
     git -C "$repo_dir" checkout "$BRANCH"
   else
-    git -C "$repo_dir" checkout -B "$BRANCH" --track "$REMOTE/$BRANCH"
+    git -C "$repo_dir" checkout -B "$BRANCH" --track "$SELECTED_REMOTE/$BRANCH"
   fi
-  git -C "$repo_dir" pull --ff-only "$REMOTE" "$BRANCH"
+  git -C "$repo_dir" merge --ff-only "$remote_ref"
 }
 
 overwrite_repo() {
@@ -375,11 +440,13 @@ print_plan() {
   local repo_dir="$1"
   local remote_url
   remote_url="$(get_remote_url "$REMOTE")"
+  build_remote_candidates
   echo "mode=dry-run"
   echo "action=$ACTION"
   echo "command_path=$COMMAND_PATH"
   echo "installer_url=$INSTALLER_URL"
   echo "remote=$REMOTE"
+  echo "remote_fallback_order=${REMOTE_CANDIDATES[*]}"
   echo "branch=$BRANCH"
   echo "remote_url=$remote_url"
   echo "install_dir=$repo_dir"
@@ -395,12 +462,14 @@ print_plan() {
     fi
   elif [[ -d "$repo_dir/.git" ]]; then
     echo "repo_action=update_existing_git"
-    echo "fetch_cmd=git -C $repo_dir fetch --prune $REMOTE $BRANCH"
+    echo "fetch_fallback=try ${REMOTE_CANDIDATES[*]}"
+    echo "fetch_cmd=git -C $repo_dir fetch --prune <remote> +refs/heads/$BRANCH:refs/remotes/<remote>/$BRANCH"
     echo "checkout_cmd=git -C $repo_dir checkout $BRANCH"
-    echo "pull_cmd=git -C $repo_dir pull --ff-only $REMOTE $BRANCH"
+    echo "merge_cmd=git -C $repo_dir merge --ff-only refs/remotes/<selected_remote>/$BRANCH"
   else
     echo "repo_action=clone"
-    echo "clone_cmd=git clone --origin $REMOTE --branch $BRANCH $remote_url $repo_dir"
+    echo "clone_fallback=try ${REMOTE_CANDIDATES[*]}"
+    echo "clone_cmd=git clone --origin <remote> --branch $BRANCH <remote_url> $repo_dir"
   fi
   echo "quick_start_cmd=bash $repo_dir/scripts/quick_start.sh ${QUICK_START_ARGS[*]}"
 }
@@ -692,6 +761,7 @@ if [[ ! -x "$INSTALL_DIR/scripts/quick_start.sh" ]]; then
 fi
 
 echo "remote=$REMOTE"
+echo "selected_remote=${SELECTED_REMOTE:-$REMOTE}"
 echo "branch=$BRANCH"
 echo "install_dir=$INSTALL_DIR"
 echo "install_dir_selection=$INSTALL_DIR_SELECTION"

@@ -90,13 +90,14 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 默认行为：
 
 - 先安装命令工具到 `~/.local/bin/skills_man`
-- 默认从远端 `github` 拉取
+- 默认先从远端 `github` 拉取；如果 GitHub SSH 无权限或失败，会立即尝试 `origin`、`cggame`
 - 默认分支 `main`
 - 默认安装到 `~/.local/share/r0-skills`
 - 如果直接从本地 skill 仓库执行 `scripts/install_and_quick_start.sh`，默认复用当前仓库，兼容旧版直接执行方式
 - 如果检测到 Codex / Claude skill 软链已经指向旧安装仓库，默认反推出并复用该仓库
 - 本地没有仓库时先 clone
 - 安装目录已有 skill 仓库时默认更新；可显式跳过或覆盖
+- clone / fetch 会按 `github -> origin -> cggame` 做远端回退，并输出实际选中的 `selected_remote`
 - 拉取成功后自动继续执行仓库内的 `scripts/quick_start.sh`
 
 常用示例：
