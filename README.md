@@ -93,6 +93,8 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 - 默认从远端 `github` 拉取
 - 默认分支 `main`
 - 默认安装到 `~/.local/share/r0-skills`
+- 如果直接从本地 skill 仓库执行 `scripts/install_and_quick_start.sh`，默认复用当前仓库，兼容旧版直接执行方式
+- 如果检测到 Codex / Claude skill 软链已经指向旧安装仓库，默认反推出并复用该仓库
 - 本地没有仓库时先 clone
 - 安装目录已有 skill 仓库时默认更新；可显式跳过或覆盖
 - 拉取成功后自动继续执行仓库内的 `scripts/quick_start.sh`
@@ -120,8 +122,9 @@ skills_man uninstall
 
 1. 首次安装时直接通过 `https://f.shine-shy.com/skills_man.sh` 下载并运行
 2. 后续安装 / 更新 / 卸载优先使用 `skills_man`
-3. 需要切换自定义前缀时，加 `--name <your-prefix>`
-4. 完成后优先使用 `$HOME/.local/bin/<prefix>push` 作为固定提交入口
+3. 旧版已经直接执行过仓库内 `scripts/install_and_quick_start.sh` 的用户，可以继续直接执行；脚本会优先复用旧仓库
+4. 需要切换自定义前缀时，加 `--name <your-prefix>`
+5. 完成后优先使用 `$HOME/.local/bin/<prefix>push` 作为固定提交入口
 
 ### 3. 一键快速启动（本地仓库已是最新时推荐）
 

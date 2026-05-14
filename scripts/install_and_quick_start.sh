@@ -6,10 +6,15 @@ if [[ -z "${R0_INSTALL_TEMP_RUNNER:-}" && -n "${BASH_SOURCE[0]:-}" && -f "${BASH
   TMP_BASE="${TMPDIR:-/tmp}"
   TMP_BASE="${TMP_BASE%/}"
   ORIG_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
+  ORIG_ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   TEMP_RUNNER="$(mktemp "$TMP_BASE/skills_man.XXXXXX")"
   cp "$ORIG_SCRIPT" "$TEMP_RUNNER"
   chmod +x "$TEMP_RUNNER"
-  exec env R0_INSTALL_TEMP_RUNNER=1 bash "$TEMP_RUNNER" "$@"
+  exec env \
+    R0_INSTALL_TEMP_RUNNER=1 \
+    R0_INSTALL_SOURCE_SCRIPT="$ORIG_SCRIPT" \
+    R0_INSTALL_SOURCE_ROOT="$ORIG_ROOT_DIR" \
+    bash "$TEMP_RUNNER" "$@"
 fi
 
 DEFAULT_REMOTE="github"
@@ -27,6 +32,8 @@ REMOTE="$DEFAULT_REMOTE"
 BRANCH="$DEFAULT_BRANCH"
 REPO_NAME="$DEFAULT_REPO_NAME"
 INSTALL_DIR=""
+INSTALL_DIR_EXPLICIT="false"
+INSTALL_DIR_SELECTION=""
 COMMAND_NAME="${R0_SKILLS_MAN_COMMAND:-$DEFAULT_COMMAND_NAME}"
 COMMAND_PATH=""
 DRY_RUN="false"
@@ -37,6 +44,7 @@ SKIP_EXISTING="false"
 
 declare -a QUICK_START_ARGS=()
 declare -a UNINSTALL_PATHS=()
+declare -a LINKED_REPO_CANDIDATES=()
 
 if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
   UI_RESET=$'\033[0m'
@@ -89,6 +97,8 @@ usage() {
 说明:
   - 可直接通过 curl 管道执行，首次执行会先安装为 ~/.local/bin/skills_man 命令
   - 默认从 github/main 拉取
+  - 若直接从本地 skill 仓库执行脚本，默认复用当前仓库，兼容旧版直接执行方式
+  - 若已存在旧 skill 软链，默认反推出旧安装仓库并复用
   - 若安装目录已有 skill 仓库，默认更新；可显式选择跳过或覆盖
   - clone / 更新完成后自动执行仓库内的 scripts/quick_start.sh
   - uninstall 会清理 skill 软链、固定 push 工具、安装仓库目录和 skills_man 命令
@@ -97,6 +107,7 @@ usage() {
   remote      github
   branch      main
   install-dir ~/.local/share/r0-skills
+              直接本地仓库执行或检测到旧软链时，会自动复用对应仓库
   command     ~/.local/bin/skills_man
 
 示例:
@@ -178,6 +189,65 @@ has_skill_install() {
     return 0
   done
   return 1
+}
+
+add_linked_repo_candidate() {
+  local repo_dir="$1"
+  local existing
+  [[ -n "$repo_dir" ]] || return 0
+  repo_dir="$(resolve_path "$repo_dir")"
+  has_skill_install "$repo_dir" || return 0
+  if (( ${#LINKED_REPO_CANDIDATES[@]} > 0 )); then
+    for existing in "${LINKED_REPO_CANDIDATES[@]}"; do
+      if [[ "$existing" == "$repo_dir" ]]; then
+        return 0
+      fi
+    done
+  fi
+  LINKED_REPO_CANDIDATES+=("$repo_dir")
+}
+
+collect_linked_repo_candidates() {
+  local base_dir entry resolved repo_dir
+  LINKED_REPO_CANDIDATES=()
+
+  for base_dir in "$CODEX_DIR" "$CLAUDE_DIR"; do
+    [[ -d "$base_dir" ]] || continue
+    while IFS= read -r entry; do
+      [[ -L "$entry" ]] || continue
+      resolved="$(resolve_path "$entry")"
+      repo_dir="$(dirname "$resolved")"
+      add_linked_repo_candidate "$repo_dir"
+    done < <(find "$base_dir" -maxdepth 1 -mindepth 1 -type l -name '*-*' | sort)
+  done
+}
+
+detect_default_install_dir() {
+  local default_dir source_root home_local
+  default_dir="$(resolve_path "${DEFAULT_INSTALL_BASE}/${REPO_NAME}")"
+  home_local="$(resolve_path "$HOME/.local")"
+  source_root="${R0_INSTALL_SOURCE_ROOT:-}"
+  if [[ -n "$source_root" ]]; then
+    source_root="$(resolve_path "$source_root")"
+  fi
+
+  if [[ -n "$source_root" && "$source_root" != "$home_local" ]]; then
+    if has_skill_install "$source_root"; then
+      INSTALL_DIR_SELECTION="source_root"
+      INSTALL_DIR="$source_root"
+      return
+    fi
+  fi
+
+  collect_linked_repo_candidates
+  if [[ ${#LINKED_REPO_CANDIDATES[@]} -eq 1 ]]; then
+    INSTALL_DIR_SELECTION="existing_skill_links"
+    INSTALL_DIR="${LINKED_REPO_CANDIDATES[0]}"
+    return
+  fi
+
+  INSTALL_DIR_SELECTION="default"
+  INSTALL_DIR="$default_dir"
 }
 
 install_command_tool() {
@@ -313,6 +383,8 @@ print_plan() {
   echo "branch=$BRANCH"
   echo "remote_url=$remote_url"
   echo "install_dir=$repo_dir"
+  echo "install_dir_selection=$INSTALL_DIR_SELECTION"
+  echo "install_dir_explicit=$INSTALL_DIR_EXPLICIT"
   if has_skill_install "$repo_dir"; then
     if [[ "$OVERWRITE_EXISTING" == "true" ]]; then
       echo "repo_action=overwrite"
@@ -501,6 +573,7 @@ while [[ $# -gt 0 ]]; do
         exit 1
       }
       INSTALL_DIR="$2"
+      INSTALL_DIR_EXPLICIT="true"
       shift 2
       ;;
     --repo-name)
@@ -566,7 +639,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "$INSTALL_DIR" ]]; then
-  INSTALL_DIR="${DEFAULT_INSTALL_BASE}/${REPO_NAME}"
+  detect_default_install_dir
+else
+  INSTALL_DIR_SELECTION="explicit"
 fi
 INSTALL_DIR="$(resolve_path "$INSTALL_DIR")"
 COMMAND_PATH="$(resolve_path "$LOCAL_BIN_DIR/$COMMAND_NAME")"
@@ -619,6 +694,7 @@ fi
 echo "remote=$REMOTE"
 echo "branch=$BRANCH"
 echo "install_dir=$INSTALL_DIR"
+echo "install_dir_selection=$INSTALL_DIR_SELECTION"
 QUICK_START_OUTPUT="$(run_quick_start "$INSTALL_DIR")"
 printf '%s\n' "$QUICK_START_OUTPUT"
 print_intro "$INSTALL_DIR" "$QUICK_START_OUTPUT"
