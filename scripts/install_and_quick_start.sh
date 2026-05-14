@@ -144,6 +144,20 @@ ensure_quick_start_arg() {
   QUICK_START_ARGS+=("$needle")
 }
 
+quick_start_has_arg() {
+  local needle="$1"
+  local item
+  if (( ${#QUICK_START_ARGS[@]} == 0 )); then
+    return 1
+  fi
+  for item in "${QUICK_START_ARGS[@]}"; do
+    if [[ "$item" == "$needle" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
 ensure_remote_known() {
   if ! get_remote_url "$REMOTE" >/dev/null; then
     echo "未知远端: $REMOTE" >&2
@@ -220,6 +234,57 @@ has_skill_install() {
     return 0
   done
   return 1
+}
+
+git_dirty_status() {
+  local repo_dir="$1"
+  [[ -d "$repo_dir/.git" ]] || return 0
+  git -C "$repo_dir" status --short --untracked-files=all 2>/dev/null || true
+}
+
+print_dirty_worktree_guidance() {
+  local repo_dir="$1"
+  local status_output="$2"
+  cat >&2 <<EOF
+[BLOCK] 安装仓库存在未提交改动，已停止 quick_start 以避免误改本地文件。
+
+repo=$repo_dir
+
+当前变更:
+$status_output
+
+处理方式:
+1. 查看改动:
+   cd "$repo_dir"
+   git status --short
+
+2. 如果要保留改动，先 stash 后重跑:
+   git stash push -u -m "before skills_man install"
+   skills_man install
+
+3. 如果确认这些改动可以参与命名初始化/同步，重跑时显式允许:
+   skills_man install --allow-dirty
+
+4. 如果你是用 curl 安装，使用:
+   curl -fsSL "$INSTALLER_URL" | bash -s -- --allow-dirty
+
+说明:
+- 这不是远端拉取失败；remote fallback 已经选中 selected_remote=${SELECTED_REMOTE:-$REMOTE}
+- 默认阻断是为了避免 init_skill_namespace.py 在 dirty worktree 上批量改写文件。
+EOF
+}
+
+ensure_clean_for_quick_start() {
+  local repo_dir="$1"
+  local status_output
+  if quick_start_has_arg "--allow-dirty"; then
+    return 0
+  fi
+  status_output="$(git_dirty_status "$repo_dir")"
+  if [[ -n "$status_output" ]]; then
+    print_dirty_worktree_guidance "$repo_dir" "$status_output"
+    exit 3
+  fi
 }
 
 add_linked_repo_candidate() {
@@ -759,6 +824,8 @@ if [[ ! -x "$INSTALL_DIR/scripts/quick_start.sh" ]]; then
   echo "未找到 quick_start.sh: $INSTALL_DIR/scripts/quick_start.sh" >&2
   exit 1
 fi
+
+ensure_clean_for_quick_start "$INSTALL_DIR"
 
 echo "remote=$REMOTE"
 echo "selected_remote=${SELECTED_REMOTE:-$REMOTE}"

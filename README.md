@@ -99,6 +99,7 @@ curl -fsSL "https://f.shine-shy.com/skills_man.sh" | bash -s --
 - 安装目录已有 skill 仓库时默认更新；可显式跳过或覆盖
 - clone / fetch 会按 `github -> origin -> cggame` 做远端回退，并输出实际选中的 `selected_remote`
 - 拉取成功后自动继续执行仓库内的 `scripts/quick_start.sh`
+- 如果旧安装仓库存在未提交改动，脚本会在 quick start 前停止，并输出 `git status`、`git stash`、`--allow-dirty` 处理指引
 
 常用示例：
 
